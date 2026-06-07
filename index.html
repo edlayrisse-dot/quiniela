@@ -57,7 +57,7 @@ input,select{font-family:var(--font)}
 .team{flex:1;font-size:13px;font-weight:600;color:var(--dark)}
 .team.away{text-align:right}
 .score-wrap{display:flex;align-items:center;gap:7px;flex-shrink:0}
-.score-in{width:38px;height:34px;border:1.5px solid var(--gray3);border-radius:8px;text-align:center;font-size:16px;font-weight:600;background:var(--gray);color:var(--dark);font-family:var(--mono);-moz-appearance:textfield;transition:border-color .15s}
+.score-in{width:38px;height:34px;border:1.5px solid var(--gray3);border-radius:8px;text-align:center;font-size:16px;font-weight:600;background:var(--gray);color:var(--dark);font-family:var(--mono);-moz-appearance:textfield;transition:border-color .15s;touch-action:manipulation}
 .score-in::-webkit-outer-spin-button,.score-in::-webkit-inner-spin-button{-webkit-appearance:none}
 .score-in:focus{outline:none;border-color:var(--red);background:var(--white)}
 .score-in:disabled{background:var(--gray2);color:var(--muted2);cursor:not-allowed}
@@ -334,7 +334,7 @@ input,select{font-family:var(--font)}
       </div>
     </div>
     <div class="tab-panel" id="apanel-participantes">
-      <div id="admin-participants-container" style="padding:14px">Cargando...</div>
+      <div id="admin-participants-container" style="padding:14px;overflow-x:auto">Cargando...</div>
     </div>
     <div class="tab-panel" id="apanel-abonuses">
       <div style="padding:16px">
@@ -520,9 +520,9 @@ function matchHTML(m){
     <div class="match-row">
       <div class="team">${m.team_home}</div>
       <div class="score-wrap">
-        <input class="score-in" type="number" min="0" max="20" value="${predH}" placeholder="–" data-mid="${m.id}" data-side="home" ${locked?'disabled':''}>
+        <input class="score-in" type="number" min="0" max="20" inputmode="numeric" pattern="[0-9]*" value="${predH}" placeholder="–" data-mid="${m.id}" data-side="home" ${locked?'disabled':''}>
         <span class="vs">–</span>
-        <input class="score-in" type="number" min="0" max="20" value="${predA}" placeholder="–" data-mid="${m.id}" data-side="away" ${locked?'disabled':''}>
+        <input class="score-in" type="number" min="0" max="20" inputmode="numeric" pattern="[0-9]*" value="${predA}" placeholder="–" data-mid="${m.id}" data-side="away" ${locked?'disabled':''}>
       </div>
       <div class="team away">${m.team_away}</div>
       ${ptsBadge}
