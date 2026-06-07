@@ -408,7 +408,7 @@ input,select{font-family:var(--font)}
 <div id="toast"></div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzHutm9WavuBjUCtLf1UKIIYkcMl6gYU6Wx54P0_lcAOSV7eCkN_p6wE-B4Ow8CJpCgTw/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyyQjoGdnyMdc-YxTtP7NWuinGX2bOI9V30--IpzdvUE5NN2gmG6yN5BkI67E_O2jUYrA/exec";
 
 let STATE = {token:null,participant:null,matches:[],predictions:{},ranking:[],myRank:null,myPts:0};
 
@@ -683,7 +683,7 @@ async function loadAdminData(){
     document.getElementById('admin-campeon').value=res.bonus_campeon||'';
     document.getElementById('admin-goleador').value=res.bonus_goleador||'';
     const ranking=res.ranking||[];
-    let pHtml=`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--gray);border-bottom:1px solid var(--border)"><th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--muted)">#</th><th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--muted)">Nombre</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--muted)">Pos.</th><th style="padding:8px 12px;text-align:right;font-weight:600;color:var(--muted)">Pts</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--muted)">Link</th></tr></thead><tbody>`;
+    let pHtml=`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--gray);border-bottom:1px solid var(--border)"><th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--muted)">#</th><th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--muted)">Nombre</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--muted)">Pos.</th><th style="padding:8px 12px;text-align:right;font-weight:600;color:var(--muted)">Pts</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--muted)">Link</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--muted)">Borrar</th></tr></thead><tbody>`;
     ranking.forEach((r,i)=>{
       const link=window.location.href.split('?')[0]+'?token='+r.token;
       pHtml+=`<tr style="border-bottom:0.5px solid var(--border)"><td style="padding:9px 12px;color:var(--muted)">${i+1}</td><td style="padding:9px 12px;font-weight:600">${r.nombre} ${r.apellido}</td><td style="padding:9px 12px;text-align:center"><span class="badge ${i<3?'badge-red':'badge-gray'}">#${i+1}</span></td><td style="padding:9px 12px;text-align:right;font-weight:700;font-family:var(--mono)">${r.pts_total}</td><td style="padding:9px 12px;text-align:center"><button onclick="navigator.clipboard.writeText('${link}').then(()=>toast('✅ Link copiado'))" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:12px;font-weight:600">Copiar link</button></td></tr>`;
@@ -691,6 +691,17 @@ async function loadAdminData(){
     pHtml+='</tbody></table>';
     document.getElementById('admin-participants-container').innerHTML=pHtml;
   }catch(e){toast('Error al cargar')}
+  hideLoading();
+}
+
+async function deleteParticipant(token, name){
+  if (!confirm(`¿Borrar a ${name}? Se eliminarán también sus pronósticos y bonuses.`)) return;
+  showLoading('Borrando participante...');
+  try {
+    const res = await api({action:'deleteParticipant', password:window.adminPass, token});
+    if (res.ok) { toast('✅ Participante borrado'); await loadAdminData(); }
+    else toast('❌ Error: ' + (res.error||''));
+  } catch(e) { toast('❌ Error de conexión'); }
   hideLoading();
 }
 
