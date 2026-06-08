@@ -202,6 +202,9 @@ input,select{font-family:var(--font)}
     <div style="text-align:right"><div class="lbl">Tus puntos</div><div class="val" id="hero-pts">– pts</div></div>
   </div>
   <div id="deadline-banner" style="display:none;border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:13px;font-weight:500;text-align:center"></div>
+  <div id="submitted-banner" style="display:none;background:#e8f7ee;border:1px solid #a5d6b5;border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:13px;font-weight:500;color:#1a7f3c;text-align:center">
+    🔒 Tus pronósticos de grupos han sido enviados y no se pueden modificar.
+  </div>
   <div id="link-reminder" style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#7a5c00;">
     <span>📋 <strong>Guarda tu link personal</strong> para acceder desde cualquier dispositivo.</span>
     <button onclick="copyMyLink();document.getElementById('link-reminder').style.display='none'" style="background:#FF574D;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Copiar link</button>
@@ -410,7 +413,7 @@ input,select{font-family:var(--font)}
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDtI6tGmc8Mvzws1utG2Y7pITAhXqFTdCF-BqDDMWn3MaFUVW9eEifrOBV5Z92AMrk5A/exec";
 
-let STATE = {token:null,participant:null,matches:[],predictions:{},ranking:[],myRank:null,myPts:0};
+let STATE = {token:null,participant:null,matches:[],predictions:{},ranking:[],myRank:null,myPts:0,submitted:false};
 
 function toast(msg,dur=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur)}
 function showLoading(msg='Cargando...'){document.getElementById('loading-text').textContent=msg;document.getElementById('loading').style.display='flex'}
@@ -457,7 +460,9 @@ async function loadParticipant(token){
     document.getElementById('stat-pts').textContent=STATE.myPts;
     document.getElementById('stat-total').textContent=STATE.ranking.length;
     if(bonusRes.ok){document.getElementById('bonus-campeon').value=bonusRes.campeon||'';document.getElementById('bonus-goleador').value=bonusRes.goleador||''}
-    renderMatches();renderRanking();updateDeadlineBanner();hideLoading();showPage('quiniela');
+    // Check if already submitted
+    STATE.submitted = localStorage.getItem('submitted_' + token) === 'true';
+    renderMatches();renderRanking();updateDeadlineBanner();updateSubmittedState();hideLoading();showPage('quiniela');
   }catch(e){hideLoading();showPage('register');document.getElementById('reg-alert').innerHTML='<div class="alert alert-error">Error de conexión. Inténtalo de nuevo.</div>'}
 }
 
@@ -551,16 +556,26 @@ function renderRanking(){
 }
 
 async function savePredictions(){
+  if(STATE.submitted){toast('Ya enviaste tus pronósticos — no se pueden modificar');return}
   const inputs=document.querySelectorAll('.score-in:not([disabled])');
   const map={};
   inputs.forEach(inp=>{const mid=inp.dataset.mid;if(!map[mid])map[mid]={};map[mid][inp.dataset.side]=inp.value.trim()});
   const predictions=Object.entries(map).filter(([_,v])=>v.home!==''&&v.away!=='').map(([mid,v])=>({match_id:parseInt(mid),home:parseInt(v.home),away:parseInt(v.away)}));
   if(predictions.length===0){toast('No hay pronósticos que guardar');return}
+  // Count filled predictions
+  const total=STATE.matches.filter(m=>m.stage==='grupos').length;
+  const filled=predictions.length;
+  if(!confirm(`¿Enviar tus ${filled} pronósticos de ${total} partidos? ⚠️ Una vez enviados NO podrás modificarlos.`)){return}
   showLoading('Guardando pronósticos...');
   try{
     const res=await api({action:'savePredictions',token:STATE.token,predictions:JSON.stringify(predictions)});
-    if(res.ok){toast('✅ Pronósticos guardados');await loadParticipant(STATE.token)}
-    else toast('❌ Error al guardar');
+    if(res.ok){
+      STATE.submitted=true;
+      localStorage.setItem('submitted_'+STATE.token,'true');
+      toast('✅ Pronósticos enviados y bloqueados');
+      updateSubmittedState();
+      await loadParticipant(STATE.token);
+    }else toast('❌ Error al guardar');
   }catch(e){toast('❌ Error de conexión')}
   hideLoading();
 }
@@ -572,6 +587,26 @@ async function saveBonus(){
   try{const res=await api({action:'saveBonus',token:STATE.token,campeon,goleador});if(res.ok)toast('✅ Bonuses guardados');else toast('❌ Error')}
   catch(e){toast('❌ Error de conexión')}
   hideLoading();
+}
+
+function updateSubmittedState(){
+  if(!STATE.submitted) return;
+  // Disable all group stage inputs
+  document.querySelectorAll('.score-in').forEach(inp => {
+    const mid = parseInt(inp.dataset.mid);
+    const match = STATE.matches.find(m => m.id == mid);
+    if(match && match.stage === 'grupos') inp.disabled = true;
+  });
+  // Update save button
+  const saveBtn = document.querySelector('.save-bar-inner .btn-primary');
+  if(saveBtn){
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '🔒 Pronósticos enviados';
+    saveBtn.style.opacity = '0.6';
+  }
+  // Show submitted banner
+  const banner = document.getElementById('submitted-banner');
+  if(banner) banner.style.display = 'block';
 }
 
 function updateDeadlineBanner(){
