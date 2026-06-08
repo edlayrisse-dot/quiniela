@@ -704,6 +704,8 @@ async function loadAdminData(){
   try{
     const res=await api({action:'getAdminData',password:window.adminPass});
     if(!res.ok){hideLoading();toast('Error al cargar datos');return}
+    // Store matches in STATE for use in viewPredictions modal
+    STATE.matches = res.matches || [];
     const groups={};const knockout=[];
     (res.matches||[]).forEach(m=>{
       if(m.stage==='grupos'){if(!groups[m.group_name])groups[m.group_name]=[];groups[m.group_name].push(m)}
