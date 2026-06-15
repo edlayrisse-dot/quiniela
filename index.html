@@ -591,12 +591,32 @@ function matchHTML(m){
   if(pred&&hasResult){const pts=pred.points;ptsBadge=`<span class="pts-pill pts-${pts}">${pts}pts</span>`}
   const lockBadge=locked?'<span class="badge badge-red" style="font-size:10px">Cerrado</span>':'';
   const othersCount = (STATE.allPredictions[m.id]||[]).length;
+  const displayDate = formatMatchDate(m.match_date);
+
+  // Real result block
+  let realResultHtml = '';
+  if(hasResult && pred){
+    const pts = pred.points;
+    let resultColor = pts==5?'#1a7f3c':pts==3?'#b07d00':'#FF574D';
+    let resultLabel = pts==5?'✓ Exacto':pts==3?'✓ Ganador':'✗ Fallo';
+    realResultHtml = `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:0.5px solid rgba(0,0,0,0.06)">
+      <span style="font-size:11px;color:var(--muted);font-weight:500">⚽ Resultado oficial:</span>
+      <span style="font-size:13px;font-weight:700;color:${resultColor}">${m.result_home} – ${m.result_away}</span>
+      <span style="font-size:11px;color:${resultColor};font-weight:500">${resultLabel}</span>
+    </div>`;
+  } else if(hasResult && !pred){
+    realResultHtml = `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:0.5px solid rgba(0,0,0,0.06)">
+      <span style="font-size:11px;color:var(--muted);font-weight:500">⚽ Resultado oficial:</span>
+      <span style="font-size:13px;font-weight:700;color:var(--dark)">${m.result_home} – ${m.result_away}</span>
+    </div>`;
+  }
+
   const othersBtn = `<div style="margin-top:7px;border-top:0.5px solid rgba(0,0,0,0.06);padding-top:7px">
     <button onclick="showMatchPredictions(${m.id},'${m.team_home}','${m.team_away}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;font-weight:500;display:flex;align-items:center;gap:4px">
       👥 Ver pronósticos de los ${othersCount} participantes
     </button>
   </div>`;
-  const displayDate = formatMatchDate(m.match_date);
+
   return `<div class="match-item">
     <div class="match-meta">${displayDate}${m.group_name?' · '+m.group_name:''} ${lockBadge}</div>
     <div class="match-row">
@@ -609,6 +629,7 @@ function matchHTML(m){
       <div class="team away">${m.team_away}</div>
       ${ptsBadge}
     </div>
+    ${realResultHtml}
     ${othersBtn}
   </div>`;
 }
