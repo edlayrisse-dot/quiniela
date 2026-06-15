@@ -422,9 +422,9 @@ input,select{font-family:var(--font)}
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDtI6tGmc8Mvzws1utG2Y7pITAhXqFTdCF-BqDDMWn3MaFUVW9eEifrOBV5Z92AMrk5A/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxA6YzqiWjIGtz5fKOcFoMXw-Hf5ubD74m808q_wygTCDiX2b3EQFbckRfSyOAt-S6kOw/exec";
 
-let STATE = {token:null,participant:null,matches:[],predictions:{},ranking:[],myRank:null,myPts:0,submitted:false};
+let STATE = {token:null,participant:null,matches:[],predictions:{},allPredictions:{},ranking:[],myRank:null,myPts:0,submitted:false};
 
 function toast(msg,dur=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur)}
 function showLoading(msg='Cargando...'){document.getElementById('loading-text').textContent=msg;document.getElementById('loading').style.display='flex'}
@@ -447,17 +447,19 @@ window.addEventListener('DOMContentLoaded',async()=>{
 async function loadParticipant(token){
   showLoading('Cargando tu quiniela...');
   try{
-    const [partRes,matchRes,predRes,rankRes,bonusRes]=await Promise.all([
+    const [partRes,matchRes,predRes,rankRes,bonusRes,allPredsRes]=await Promise.all([
       api({action:'getParticipant',token}),
       api({action:'getMatches'}),
       api({action:'getPredictions',token}),
       api({action:'getRanking'}),
-      api({action:'getBonus',token})
+      api({action:'getBonus',token}),
+      api({action:'getAllPredictions'})
     ]);
     if(!partRes.ok){hideLoading();showPage('register');return}
     STATE.token=token;STATE.participant=partRes;
     STATE.matches=matchRes.matches||[];
     STATE.predictions={};
+    STATE.allPredictions=allPredsRes.by_match||{};
     (predRes.predictions||[]).forEach(p=>STATE.predictions[p.match_id]=p);
     STATE.ranking=rankRes.ranking||[];
     const myRankIdx=STATE.ranking.findIndex(r=>r.token===token);
@@ -500,6 +502,20 @@ async function doRegister(){
 
 function copyMyLink(){const link=window.location.href.split('?')[0]+'?token='+STATE.token;navigator.clipboard.writeText(link).then(()=>toast('✅ Link copiado — guárdalo para volver'))}
 
+function parseMatchDate(dateStr){
+  // Parse dates like "11 jun 18:00" or "11 jun 21:00"
+  if(!dateStr) return new Date(0);
+  const months={'ene':0,'feb':1,'mar':2,'abr':3,'may':4,'jun':5,'jul':6,'ago':7,'sep':8,'oct':9,'nov':10,'dic':11};
+  const parts = dateStr.trim().split(' ');
+  if(parts.length < 3) return new Date(0);
+  const day = parseInt(parts[0]);
+  const month = months[parts[1].toLowerCase()] !== undefined ? months[parts[1].toLowerCase()] : 5;
+  const timeParts = parts[2].split(':');
+  const hour = parseInt(timeParts[0]) || 0;
+  const min = parseInt(timeParts[1]) || 0;
+  return new Date(2026, month, day, hour, min);
+}
+
 function renderMatches(){
   const container=document.getElementById('matches-container');
   const groups={};const knockout=[];
@@ -507,12 +523,31 @@ function renderMatches(){
     if(m.stage==='grupos'){if(!groups[m.group_name])groups[m.group_name]=[];groups[m.group_name].push(m)}
     else knockout.push(m)
   });
+
+  // Sort all group matches by date
+  const allGroupMatches = [];
+  Object.values(groups).forEach(matches => allGroupMatches.push(...matches));
+  allGroupMatches.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
+
+  // Group by date for display
+  const byDate = {};
+  allGroupMatches.forEach(m => {
+    const d = m.match_date ? m.match_date.split(' ').slice(0,2).join(' ') : 'Sin fecha';
+    if(!byDate[d]) byDate[d] = [];
+    byDate[d].push(m);
+  });
+
   let html='';
-  Object.entries(groups).sort().forEach(([gName,matches])=>{
-    html+=`<div class="group-label">${gName}</div>`;
+  Object.entries(byDate).forEach(([date, matches]) => {
+    html+=`<div class="group-label">${date}</div>`;
     html+=matches.map(m=>matchHTML(m)).join('');
   });
-  if(knockout.length){html+=`<div class="group-label" style="margin-top:8px">Eliminatorias</div>`;html+=knockout.map(m=>matchHTML(m)).join('')}
+
+  if(knockout.length){
+    knockout.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
+    html+=`<div class="group-label" style="margin-top:8px">Eliminatorias</div>`;
+    html+=knockout.map(m=>matchHTML(m)).join('');
+  }
   container.innerHTML=html;
 }
 
@@ -531,6 +566,12 @@ function matchHTML(m){
   let ptsBadge='';
   if(pred&&hasResult){const pts=pred.points;ptsBadge=`<span class="pts-pill pts-${pts}">${pts}pts</span>`}
   const lockBadge=locked?'<span class="badge badge-red" style="font-size:10px">Cerrado</span>':'';
+  const othersCount = (STATE.allPredictions[m.id]||[]).length;
+  const othersBtn = `<div style="margin-top:7px;border-top:0.5px solid rgba(0,0,0,0.06);padding-top:7px">
+    <button onclick="showMatchPredictions(${m.id},'${m.team_home}','${m.team_away}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;font-weight:500;display:flex;align-items:center;gap:4px">
+      👥 Ver pronósticos de los ${othersCount} participantes
+    </button>
+  </div>`;
   return `<div class="match-item${locked?' locked':''}">
     <div class="match-meta">${m.match_date||''}${m.group_name?' · '+m.group_name:''} ${lockBadge}</div>
     <div class="match-row">
@@ -543,6 +584,7 @@ function matchHTML(m){
       <div class="team away">${m.team_away}</div>
       ${ptsBadge}
     </div>
+    ${othersBtn}
   </div>`;
 }
 
@@ -726,8 +768,18 @@ async function loadAdminData(){
         const rh=m.result_home!==''?m.result_home:'';const ra=m.result_away!==''?m.result_away:'';
         html+=`<div class="admin-match"><div style="flex:1"><div style="font-size:11px;color:var(--muted);margin-bottom:2px">${m.stage.toUpperCase()} · ${m.match_date||''}</div><div style="font-size:13px;font-weight:600">${m.team_home} vs ${m.team_away}</div></div><input class="result-box" type="number" min="0" value="${rh}" placeholder="–" id="rh-${m.id}"><span style="font-size:14px;color:var(--muted)">–</span><input class="result-box" type="number" min="0" value="${ra}" placeholder="–" id="ra-${m.id}"><button class="btn btn-primary btn-xs" onclick="adminSaveResult(${m.id})">Guardar</button></div>`;
       });
-      html+=`<div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--border)"><div style="font-size:13px;font-weight:600;margin-bottom:10px">Añadir partido de eliminatoria</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px"><input class="input" id="new-stage" placeholder="Fase (octavos, cuartos...)" style="font-size:13px"><input class="input" id="new-date" placeholder="Fecha" style="font-size:13px"><input class="input" id="new-home" placeholder="Equipo local" style="font-size:13px"><input class="input" id="new-away" placeholder="Equipo visitante" style="font-size:13px"></div><button class="btn btn-secondary btn-sm" onclick="adminAddMatch()">+ Añadir partido</button></div>`;
     }
+    // Always show add match section
+    html+=`<div style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">➕ Añadir partido de eliminatoria</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <input class="input" id="new-stage" placeholder="Fase (octavos, cuartos...)" style="font-size:13px">
+        <input class="input" id="new-date" placeholder="Ej: 4 jul 18:00" style="font-size:13px">
+        <input class="input" id="new-home" placeholder="Equipo local" style="font-size:13px">
+        <input class="input" id="new-away" placeholder="Equipo visitante" style="font-size:13px">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="adminAddMatch()">+ Añadir partido</button>
+    </div>`;
     document.getElementById('admin-matches-container').innerHTML=html;
     document.getElementById('admin-campeon').value=res.bonus_campeon||'';
     document.getElementById('admin-goleador').value=res.bonus_goleador||'';
@@ -741,6 +793,62 @@ async function loadAdminData(){
     document.getElementById('admin-participants-container').innerHTML=pHtml;
   }catch(e){toast('Error al cargar')}
   hideLoading();
+}
+
+function showMatchPredictions(matchId, homeTeam, awayTeam){
+  const preds = STATE.allPredictions[matchId] || [];
+  const match = STATE.matches.find(m => m.id == matchId);
+  const hasResult = match && match.result_home !== '' && match.result_home !== null;
+
+  document.getElementById('modal-title').textContent = `👥 ${homeTeam} vs ${awayTeam}`;
+
+  if(preds.length === 0){
+    document.getElementById('modal-body').innerHTML = '<p style="color:#888;text-align:center;padding:20px">Nadie ha pronosticado este partido aún.</p>';
+    document.getElementById('pred-modal').style.display = 'block';
+    return;
+  }
+
+  // Group by score
+  const scoreMap = {};
+  preds.forEach(p => {
+    const key = `${p.pred_home}-${p.pred_away}`;
+    if(!scoreMap[key]) scoreMap[key] = {home: p.pred_home, away: p.pred_away, people: [], points: p.points};
+    scoreMap[key].people.push(p.nombre + ' ' + p.apellido);
+  });
+
+  // Sort by number of people who chose that score
+  const sorted = Object.values(scoreMap).sort((a,b) => b.people.length - a.people.length);
+
+  let html = `<div style="font-size:12px;color:var(--muted);margin-bottom:14px;text-align:center">${preds.length} pronósticos enviados</div>`;
+
+  if(hasResult){
+    html += `<div style="background:#f4f4f2;border-radius:8px;padding:10px;text-align:center;margin-bottom:14px;font-size:13px">
+      Resultado oficial: <strong style="font-size:16px">${match.result_home} – ${match.result_away}</strong>
+    </div>`;
+  }
+
+  sorted.forEach(s => {
+    const pct = Math.round(s.people.length / preds.length * 100);
+    let bgColor = '#f9f9f9'; let pts = '';
+    if(hasResult){
+      if(s.points == 5){ bgColor='#e8f7ee'; pts='<span style="background:#e8f7ee;color:#1a7f3c;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">5pts</span>'; }
+      else if(s.points == 3){ bgColor='#fff8e1'; pts='<span style="background:#fff8e1;color:#b07d00;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">3pts</span>'; }
+      else { bgColor='#fff0ef'; pts='<span style="background:#fff0ef;color:#FF574D;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">0pts</span>'; }
+    }
+    html += `<div style="background:${bgColor};border-radius:10px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:20px;font-weight:700">${s.home} – ${s.away}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:12px;color:var(--muted)">${s.people.length} persona${s.people.length>1?'s':''} (${pct}%)</span>
+          ${pts}
+        </div>
+      </div>
+      <div style="font-size:12px;color:#555;line-height:1.6">${s.people.join(', ')}</div>
+    </div>`;
+  });
+
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('pred-modal').style.display = 'block';
 }
 
 async function viewPredictions(token, name){
