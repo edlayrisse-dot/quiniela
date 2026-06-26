@@ -211,7 +211,8 @@ input,select{font-family:var(--font)}
   </div>
   <div class="card" style="padding:0">
     <div class="tab-bar">
-      <button class="tab active" onclick="switchTab('pronosticos')">Mis pronósticos</button>
+      <button class="tab active" onclick="switchTab('pronosticos')">Grupos</button>
+      <button class="tab" onclick="switchTab('eliminatorias')">Eliminatorias</button>
       <button class="tab" onclick="switchTab('ranking')">Ranking</button>
       <button class="tab" onclick="switchTab('bonuses')">Bonuses</button>
       <button class="tab" onclick="switchTab('reglas')">Reglas</button>
@@ -219,6 +220,11 @@ input,select{font-family:var(--font)}
     <div class="tab-panel active" id="panel-pronosticos">
       <div style="padding:14px" id="matches-container">
         <p class="text-muted text-center" style="padding:20px">Cargando partidos...</p>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-eliminatorias">
+      <div style="padding:14px" id="knockout-container">
+        <p class="text-muted text-center" style="padding:20px">Los partidos de eliminatorias aparecerán aquí cuando se conozcan los clasificados.</p>
       </div>
     </div>
     <div class="tab-panel" id="panel-ranking">
@@ -446,7 +452,7 @@ input,select{font-family:var(--font)}
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxC5P4xFogn8hKw4b08HBHi3onwgIG6l95DLrv6jhYZ0u1UfFQ8u0yzsxfwbUFmSL9QIw/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhmwJTrJ4-lTgorAMgSSanmPbbfTZQFkosy97NgwatUf5_R0ziL6XmDcqTyaXDMaI/exec";
 
 let STATE = {token:null,participant:null,matches:[],predictions:{},allPredictions:{},ranking:[],myRank:null,myPts:0,submitted:false};
 
@@ -557,20 +563,32 @@ function formatMatchDate(dateStr){
   return dateStr;
 }
 
+function getStageLabel(stage){
+  const labels = {'ronda32':'Ronda de 32','octavos':'Octavos de final','cuartos':'Cuartos de final','semifinal':'Semifinales','final':'Final'};
+  return labels[stage] || stage;
+}
+
+function getStageMultiplier(stage){
+  const mults = {'grupos':1,'ronda32':1,'octavos':2,'cuartos':3,'semifinal':4,'final':5};
+  return mults[stage] || 1;
+}
+
+function getStagePoints(stage){
+  const m = getStageMultiplier(stage);
+  return `${5*m}/${3*m} pts`;
+}
+
 function renderMatches(){
   const container=document.getElementById('matches-container');
-  const groups={};const knockout=[];
+  const groups={};
   STATE.matches.forEach(m=>{
     if(m.stage==='grupos'){if(!groups[m.group_name])groups[m.group_name]=[];groups[m.group_name].push(m)}
-    else knockout.push(m)
   });
 
-  // Sort all group matches by date
   const allGroupMatches = [];
   Object.values(groups).forEach(matches => allGroupMatches.push(...matches));
   allGroupMatches.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
 
-  // Group by date for display
   const byDate = {};
   allGroupMatches.forEach(m => {
     let d;
@@ -590,12 +608,40 @@ function renderMatches(){
     html+=`<div class="group-label">${date}</div>`;
     html+=matches.map(m=>matchHTML(m)).join('');
   });
+  container.innerHTML=html;
+}
 
-  if(knockout.length){
-    knockout.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
-    html+=`<div class="group-label" style="margin-top:8px">Eliminatorias</div>`;
-    html+=knockout.map(m=>matchHTML(m)).join('');
+function renderKnockout(){
+  const container=document.getElementById('knockout-container');
+  const knockout = STATE.matches.filter(m=>m.stage!=='grupos');
+
+  if(!knockout.length){
+    container.innerHTML='<p class="text-muted text-center" style="padding:20px">⏳ Los partidos de eliminatorias aparecerán aquí cuando se conozcan los clasificados el 29 de junio.</p>';
+    return;
   }
+
+  knockout.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
+
+  // Group by stage
+  const stageOrder = ['ronda32','octavos','cuartos','semifinal','final'];
+  const byStage = {};
+  knockout.forEach(m => {
+    if(!byStage[m.stage]) byStage[m.stage] = [];
+    byStage[m.stage].push(m);
+  });
+
+  let html='';
+  stageOrder.forEach(stage => {
+    if(!byStage[stage]) return;
+    const mult = getStageMultiplier(stage);
+    const pts = getStagePoints(stage);
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;margin-top:${stage==='ronda32'?'0':'16px'}">
+      <div class="group-label" style="padding:0;margin:0">${getStageLabel(stage)}</div>
+      <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:var(--red-light);color:var(--red)">×${mult} · ${pts}</span>
+    </div>`;
+    html+=byStage[stage].map(m=>matchHTML(m)).join('');
+  });
+
   container.innerHTML=html;
 }
 
@@ -789,8 +835,10 @@ function updateDeadlineBanner(){
 }
 
 function switchTab(name){
-  document.querySelectorAll('#page-quiniela .tab').forEach((t,i)=>{t.classList.toggle('active',['pronosticos','ranking','bonuses','reglas'][i]===name)});
-  document.querySelectorAll('#page-quiniela .tab-panel').forEach((p,i)=>{p.classList.toggle('active',['pronosticos','ranking','bonuses','reglas'][i]===name)});
+  const tabs = ['pronosticos','eliminatorias','ranking','bonuses','reglas'];
+  document.querySelectorAll('#page-quiniela .tab').forEach((t,i)=>{t.classList.toggle('active',tabs[i]===name)});
+  document.querySelectorAll('#page-quiniela .tab-panel').forEach((p,i)=>{p.classList.toggle('active',tabs[i]===name)});
+  if(name==='eliminatorias') renderKnockout();
 }
 
 function switchAdminTab(name){
