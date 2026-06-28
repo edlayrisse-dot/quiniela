@@ -475,11 +475,6 @@ const BRACKET = {
   tercero: [[0,1]],
   final: [[0,1]]
 };
-  cuartos: [[0,1],[2,3],[4,5],[6,7]],
-  semifinal: [[0,1],[2,3]],
-  tercero: [[0,1]],
-  final: [[0,1]]
-};
 
 function toast(msg,dur=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur)}
 function showLoading(msg='Cargando...'){document.getElementById('loading-text').textContent=msg;document.getElementById('loading').style.display='flex'}
