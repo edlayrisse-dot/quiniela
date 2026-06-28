@@ -458,14 +458,23 @@ let STATE = {token:null,participant:null,matches:[],predictions:{},allPrediction
 
 // Official bracket structure (match IDs from Sheet)
 const BRACKET = {
-  // Indices into the sorted R32 array (0-15)
-  // Order after sorting by date:
-  // 0=Sudáfrica/Canadá, 1=Brasil/Japón, 2=Alemania/Paraguay,
-  // 3=PaísesBajos/Marruecos, 4=CMarfil/Noruega, 5=Francia/Suecia,
-  // 6=México/Ecuador, 7=Inglaterra/RDCongo, 8=Bélgica/Senegal,
-  // 9=EEUU/Bosnia, 10=España/Austria, 11=Portugal/Croacia,
-  // 12=Suiza/Argelia, 13=Australia/Egipto, 14=Argentina/CaboVerde, 15=Colombia/Ghana
-  octavos: [[1,4],[0,2],[3,5],[6,7],[10,11],[8,9],[13,15],[12,14]],
+  // Uses actual Sheet IDs (73-88) for R32 matches
+  // Based on official FIFA bracket from Excel
+  // Octavos pairs (Sheet IDs):
+  // 74(Alemania/Paraguay) vs 77(Francia/Suecia)
+  // 73(Sudáfrica/Canadá) vs 75(PaísesBajos/Marruecos)
+  // 83(Portugal/Croacia) vs 84(España/Austria)
+  // 81(Bélgica/Senegal) vs 82(EEUU/Bosnia)
+  // 76(Brasil/Japón) vs 78(CMarfil/Noruega)
+  // 79(México/Ecuador) vs 80(Inglaterra/RDCongo)
+  // 86(Argentina/CaboVerde) vs 88(Australia/Egipto)
+  // 85(Suiza/Argelia) vs 87(Colombia/Ghana)
+  octavosBySheetId: [[74,77],[73,75],[83,84],[81,82],[76,78],[79,80],[86,88],[85,87]],
+  cuartos: [[0,1],[2,3],[4,5],[6,7]],
+  semifinal: [[0,1],[2,3]],
+  tercero: [[0,1]],
+  final: [[0,1]]
+};
   cuartos: [[0,1],[2,3],[4,5],[6,7]],
   semifinal: [[0,1],[2,3]],
   tercero: [[0,1]],
@@ -695,12 +704,12 @@ function renderKnockout(){
   const r32ids = r32matches.map(m=>m.id);
 
   // Build virtual matches for each round
-  // Map pair indices to actual match IDs by position (0-15)
-  const octMatches = BRACKET.octavos.map((pair,idx)=>({
+  // Use Sheet IDs directly for R32 match lookup
+  const octMatches = BRACKET.octavosBySheetId.map((pair,idx)=>({
     virtualId:'octavos_'+idx,
-    match1Id:r32ids[pair[0]], match2Id:r32ids[pair[1]],
-    team_home: getWinnerFromBracket(r32ids[pair[0]])||'?',
-    team_away: getWinnerFromBracket(r32ids[pair[1]])||'?', stage:'octavos'
+    match1Id:pair[0], match2Id:pair[1],
+    team_home: getWinnerFromBracket(pair[0])||'?',
+    team_away: getWinnerFromBracket(pair[1])||'?', stage:'octavos'
   }));
 
   const cuaMatches = BRACKET.cuartos.map((pair,idx)=>({
