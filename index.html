@@ -520,8 +520,13 @@ async function loadParticipant(token){
     STATE.bracketPreds={};
     (predRes.predictions||[]).forEach(p=>STATE.predictions[p.match_id]=p);
     (bracketRes.predictions||[]).forEach(p=>{
-      // Use string key for consistency
-      STATE.bracketPreds[String(p.match_id)]=p;
+      STATE.bracketPreds[String(p.match_id)]={
+        pred_home: p.pred_home,
+        pred_away: p.pred_away,
+        pred_winner: p.pred_winner,
+        team_home: p.pred_winner, // will be rebuilt from bracket structure on render
+        team_away: null
+      };
     });
     STATE.ranking=rankRes.ranking||[];
     const myRankIdx=STATE.ranking.findIndex(r=>r.token===token);
@@ -738,8 +743,11 @@ function renderKnockout(){
   const semi1 = semiMatches[1];
   const semi0bp = STATE.bracketPreds['semifinal_0'];
   const semi1bp = STATE.bracketPreds['semifinal_1'];
-  const loser0 = semi0bp ? (semi0bp.pred_winner === semi0.team_home ? semi0.team_away : semi0.team_home) : '?';
-  const loser1 = semi1bp ? (semi1bp.pred_winner === semi1.team_home ? semi1.team_away : semi1.team_home) : '?';
+  // semiMatches[0] has team_home and team_away from the bracket structure
+  const loser0 = semi0bp && semi0.team_home !== '?' ?
+    (semi0bp.pred_winner === semi0.team_home ? semi0.team_away : semi0.team_home) : '?';
+  const loser1 = semi1bp && semi1.team_home !== '?' ?
+    (semi1bp.pred_winner === semi1.team_home ? semi1.team_away : semi1.team_home) : '?';
 
   const terceroMatch = {
     virtualId:'tercero_0',
@@ -886,7 +894,7 @@ async function saveBracketMatch(matchId, teamHome, teamAway){
   const winner = home > away ? teamHome : teamAway;
   window._bracketModal.winner = winner;
 
-  STATE.bracketPreds[String(matchId)] = {pred_home:parseInt(home), pred_away:parseInt(away), pred_winner:winner};
+  STATE.bracketPreds[String(matchId)] = {pred_home:parseInt(home), pred_away:parseInt(away), pred_winner:winner, team_home:teamHome, team_away:teamAway};
 
   showLoading('Guardando...');
   try{
