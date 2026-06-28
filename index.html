@@ -616,13 +616,12 @@ function renderKnockout(){
   const knockout = STATE.matches.filter(m=>m.stage!=='grupos');
 
   if(!knockout.length){
-    container.innerHTML='<p class="text-muted text-center" style="padding:20px">⏳ Los partidos de eliminatorias aparecerán aquí cuando se conozcan los clasificados el 29 de junio.</p>';
+    container.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px">⏳ Los partidos de eliminatorias aparecerán aquí cuando se conozcan los clasificados.</p>';
     return;
   }
 
   knockout.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
 
-  // Group by stage
   const stageOrder = ['ronda32','octavos','cuartos','semifinal','final'];
   const byStage = {};
   knockout.forEach(m => {
@@ -630,19 +629,110 @@ function renderKnockout(){
     byStage[m.stage].push(m);
   });
 
-  let html='';
+  // Build bracket HTML
+  let bracketHTML = `<div style="overflow-x:auto;padding-bottom:10px;margin-bottom:14px">
+    <div style="display:flex;gap:0;min-width:${Object.keys(byStage).length * 140}px">`;
+
   stageOrder.forEach(stage => {
     if(!byStage[stage]) return;
     const mult = getStageMultiplier(stage);
     const pts = getStagePoints(stage);
-    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;margin-top:${stage==='ronda32'?'0':'16px'}">
-      <div class="group-label" style="padding:0;margin:0">${getStageLabel(stage)}</div>
-      <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:var(--red-light);color:var(--red)">×${mult} · ${pts}</span>
-    </div>`;
-    html+=byStage[stage].map(m=>matchHTML(m)).join('');
+    const matches = byStage[stage];
+    const totalRounds = stageOrder.filter(s=>byStage[s]).length;
+    const stageIdx = stageOrder.filter(s=>byStage[s]).indexOf(stage);
+    const marginTop = stageIdx === 0 ? 0 : Math.pow(2, stageIdx) * 18;
+
+    bracketHTML += `<div style="display:flex;flex-direction:column;min-width:140px">
+      <div style="text-align:center;padding-bottom:8px">
+        <div style="font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${getStageLabel(stage)}</div>
+        <span style="font-size:9px;padding:2px 7px;border-radius:20px;font-weight:500;background:var(--red-light);color:var(--red)">×${mult} · ${pts}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;flex:1;justify-content:space-around">`;
+
+    matches.forEach((m, idx) => {
+      const hasResult = m.result_home !== '' && m.result_home !== null;
+      const pred = STATE.predictions[m.id];
+      const rh = hasResult ? m.result_home : '';
+      const ra = hasResult ? m.result_away : '';
+      const homeWin = hasResult && parseInt(m.result_home) > parseInt(m.result_away);
+      const awayWin = hasResult && parseInt(m.result_away) > parseInt(m.result_home);
+
+      const homeStyle = homeWin ? 'background:var(--green-bg)' : '';
+      const awayStyle = awayWin ? 'background:var(--green-bg)' : '';
+      const homeNameStyle = homeWin ? 'color:var(--green);font-weight:500' : '';
+      const awayNameStyle = awayWin ? 'color:var(--green);font-weight:500' : '';
+
+      const mt = idx === 0 && stageIdx > 0 ? `margin-top:${marginTop}px` : idx > 0 ? `margin-top:${marginTop * 2}px` : '';
+
+      bracketHTML += `<div style="${mt}">
+        <div style="border:0.5px solid var(--border);border-radius:8px;background:#fff;margin:3px 6px;overflow:hidden">
+          <div style="display:flex;align-items:center;padding:5px 7px;border-bottom:0.5px solid var(--border);gap:4px;${homeStyle}">
+            <span style="flex:1;font-size:10px;font-weight:500;${homeNameStyle}">${m.team_home||'Por definir'}</span>
+            <span style="font-size:10px;font-weight:500;color:var(--muted);min-width:12px;text-align:center">${rh !== '' ? rh : '–'}</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:5px 7px;gap:4px;${awayStyle}">
+            <span style="flex:1;font-size:10px;font-weight:500;${awayNameStyle}">${m.team_away||'Por definir'}</span>
+            <span style="font-size:10px;font-weight:500;color:var(--muted);min-width:12px;text-align:center">${ra !== '' ? ra : '–'}</span>
+          </div>
+        </div>
+      </div>`;
+    });
+
+    // Champion trophy for final
+    if(stage === 'final' && byStage['final']){
+      const finalMatch = byStage['final'][0];
+      const hasResult = finalMatch && finalMatch.result_home !== '' && finalMatch.result_home !== null;
+      let champion = '???';
+      if(hasResult){
+        champion = parseInt(finalMatch.result_home) > parseInt(finalMatch.result_away) ? finalMatch.team_home : finalMatch.team_away;
+      }
+    }
+
+    bracketHTML += `</div></div>`;
   });
 
-  container.innerHTML=html;
+  bracketHTML += `</div></div>`;
+
+  // Fill button
+  const fillBtn = `<button onclick="switchKnockoutView('list')" style="width:100%;padding:9px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;margin-bottom:12px;cursor:pointer">✏️ Rellenar mis pronósticos</button>`;
+
+  container.innerHTML = fillBtn + bracketHTML;
+}
+
+function switchKnockoutView(view){
+  const container = document.getElementById('knockout-container');
+  const knockout = STATE.matches.filter(m=>m.stage!=='grupos');
+  knockout.sort((a,b) => parseMatchDate(a.match_date) - parseMatchDate(b.match_date));
+
+  if(view === 'list'){
+    const stageOrder = ['ronda32','octavos','cuartos','semifinal','final'];
+    const byStage = {};
+    knockout.forEach(m => {
+      if(!byStage[m.stage]) byStage[m.stage] = [];
+      byStage[m.stage].push(m);
+    });
+
+    let html = `<button onclick="switchKnockoutView('bracket')" style="width:100%;padding:9px;background:var(--gray);color:var(--dark);border:0.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;margin-bottom:12px;cursor:pointer">← Ver bracket</button>`;
+
+    stageOrder.forEach(stage => {
+      if(!byStage[stage]) return;
+      const mult = getStageMultiplier(stage);
+      const pts = getStagePoints(stage);
+      html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;margin-top:${stage==='ronda32'?'0':'16px'}">
+        <div class="group-label" style="padding:0;margin:0">${getStageLabel(stage)}</div>
+        <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:var(--red-light);color:var(--red)">×${mult} · ${pts}</span>
+      </div>`;
+      html+=byStage[stage].map(m=>matchHTML(m)).join('');
+    });
+
+    html += `<div class="save-bar-inner" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="savePredictions()" style="width:100%">💾 Guardar pronósticos</button>
+    </div>`;
+
+    container.innerHTML = html;
+  } else {
+    renderKnockout();
+  }
 }
 
 function matchHTML(m){
