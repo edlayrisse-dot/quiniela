@@ -701,7 +701,9 @@ function renderKnockout(){
     return;
   }
 
-  r32matches.sort((a,b)=>parseMatchDate(a.match_date)-parseMatchDate(b.match_date));
+  // Sort R32 by official bracket order, not by date
+  const BRACKET_ORDER = [75,78,73,76,84,83,82,81,74,77,79,80,87,86,85,88];
+  r32matches.sort((a,b)=>BRACKET_ORDER.indexOf(a.id)-BRACKET_ORDER.indexOf(b.id));
   const r32ids = r32matches.map(m=>m.id);
 
   // Build virtual matches for each round
