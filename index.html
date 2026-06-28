@@ -664,8 +664,14 @@ function renderKnockout(){
 
       const mt = idx === 0 && stageIdx > 0 ? `margin-top:${marginTop}px` : idx > 0 ? `margin-top:${marginTop * 2}px` : '';
 
+      const isLocked = m.locked == 1;
+      const predH = pred ? pred.pred_home : '';
+      const predA = pred ? pred.pred_away : '';
+      const hasPred = predH !== '' && predA !== '';
+      const predBadge = hasPred ? `<div style="font-size:9px;color:var(--muted);text-align:center;padding:2px 4px">${predH}–${predA}</div>` : '';
+
       bracketHTML += `<div style="${mt}">
-        <div style="border:0.5px solid var(--border);border-radius:8px;background:#fff;margin:3px 6px;overflow:hidden">
+        <div onclick="openBracketModal(${m.id})" style="border:0.5px solid ${hasPred?'var(--green)':'var(--border)'};border-radius:8px;background:#fff;margin:3px 6px;overflow:hidden;cursor:pointer">
           <div style="display:flex;align-items:center;padding:5px 7px;border-bottom:0.5px solid var(--border);gap:4px;${homeStyle}">
             <span style="flex:1;font-size:10px;font-weight:500;${homeNameStyle}">${m.team_home||'Por definir'}</span>
             <span style="font-size:10px;font-weight:500;color:var(--muted);min-width:12px;text-align:center">${rh !== '' ? rh : '–'}</span>
@@ -674,6 +680,7 @@ function renderKnockout(){
             <span style="flex:1;font-size:10px;font-weight:500;${awayNameStyle}">${m.team_away||'Por definir'}</span>
             <span style="font-size:10px;font-weight:500;color:var(--muted);min-width:12px;text-align:center">${ra !== '' ? ra : '–'}</span>
           </div>
+          ${predBadge}
         </div>
       </div>`;
     });
@@ -693,10 +700,78 @@ function renderKnockout(){
 
   bracketHTML += `</div></div>`;
 
-  // Fill button
-  const fillBtn = `<button onclick="switchKnockoutView('list')" style="width:100%;padding:9px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;margin-bottom:12px;cursor:pointer">✏️ Rellenar mis pronósticos</button>`;
+  container.innerHTML = bracketHTML;
+}
 
-  container.innerHTML = fillBtn + bracketHTML;
+function openBracketModal(matchId){
+  const m = STATE.matches.find(x => x.id == matchId);
+  if(!m) return;
+  const pred = STATE.predictions[matchId];
+  const locked = m.locked == 1 || STATE.submitted;
+  const hasResult = m.result_home !== '' && m.result_home !== null;
+
+  const predH = pred ? pred.pred_home : '';
+  const predA = pred ? pred.pred_away : '';
+
+  const mult = getStageMultiplier(m.stage);
+  const pts = getStagePoints(m.stage);
+
+  let resultHTML = '';
+  if(hasResult && pred){
+    const p = pred.points;
+    const cls = p >= 5*mult ? 'background:var(--green-bg);color:var(--green)' : p >= 3*mult ? 'background:#fff8e1;color:#b07d00' : 'background:var(--red-light);color:var(--red)';
+    const lbl = p >= 5*mult ? '✓ Exacto' : p >= 3*mult ? '✓ Ganador' : '✗ Fallo';
+    resultHTML = `<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:8px;${cls}">
+      <span style="font-size:12px;font-weight:500">⚽ ${m.result_home} – ${m.result_away}</span>
+      <span style="font-size:12px;font-weight:500">${lbl}</span>
+      <span style="font-size:12px;font-weight:700;margin-left:auto">${p} pts</span>
+    </div>`;
+  } else if(hasResult){
+    resultHTML = `<div style="background:var(--gray);border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12px;color:var(--muted)">
+      Resultado: <strong>${m.result_home} – ${m.result_away}</strong> · Sin pronóstico
+    </div>`;
+  }
+
+  document.getElementById('modal-title').textContent = `${m.team_home} vs ${m.team_away}`;
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${formatMatchDate(m.match_date)} · ${getStageLabel(m.stage)} · ×${mult} (${pts})</div>
+    ${locked ? '' : `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="flex:1;text-align:center">
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px">${m.team_home}</div>
+        <input id="bm-home" type="number" min="0" max="20" inputmode="numeric" value="${predH}" placeholder="–" style="width:60px;height:44px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:20px;font-weight:700;font-family:inherit">
+      </div>
+      <div style="font-size:18px;color:var(--muted);font-weight:500">–</div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px">${m.team_away}</div>
+        <input id="bm-away" type="number" min="0" max="20" inputmode="numeric" value="${predA}" placeholder="–" style="width:60px;height:44px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:20px;font-weight:700;font-family:inherit">
+      </div>
+    </div>
+    <button onclick="saveBracketPred(${matchId})" style="width:100%;padding:10px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer">Guardar pronóstico</button>
+    `}
+    ${locked ? `<div style="background:var(--gray);border-radius:8px;padding:10px;text-align:center;font-size:13px;color:var(--muted)">
+      🔒 Pronóstico: <strong>${predH !== '' ? predH+' – '+predA : 'No pronosticado'}</strong>
+    </div>` : ''}
+    ${resultHTML}
+  `;
+  document.getElementById('pred-modal').style.display = 'block';
+}
+
+async function saveBracketPred(matchId){
+  const home = document.getElementById('bm-home').value.trim();
+  const away = document.getElementById('bm-away').value.trim();
+  if(home === '' || away === ''){toast('Rellena ambos marcadores');return}
+  showLoading('Guardando...');
+  try{
+    const res = await api({action:'savePredictions', token:STATE.token, predictions:JSON.stringify([{match_id:matchId, home:parseInt(home), away:parseInt(away)}])});
+    if(res.ok){
+      STATE.predictions[matchId] = {match_id:matchId, pred_home:parseInt(home), pred_away:parseInt(away), points:0};
+      toast('✅ Pronóstico guardado');
+      document.getElementById('pred-modal').style.display='none';
+      renderKnockout();
+    } else toast('❌ Error al guardar');
+  } catch(e){toast('❌ Error de conexión')}
+  hideLoading();
 }
 
 function switchKnockoutView(view){
