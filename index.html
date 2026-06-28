@@ -727,11 +727,25 @@ function renderKnockout(){
     team_away: getWinnerFromBracket('cuartos_'+pair[1])||'?', stage:'semifinal'
   }));
 
+  // 3rd place: losers of each semifinal
+  function getLoser(virtualId){
+    const bp = STATE.bracketPreds[String(virtualId)];
+    if(!bp || !bp.pred_winner) return '?';
+    return bp.pred_winner === bp.pred_home_team ? bp.pred_away_team : bp.pred_home_team;
+  }
+  // Get teams from semiMatches
+  const semi0 = semiMatches[0];
+  const semi1 = semiMatches[1];
+  const semi0bp = STATE.bracketPreds['semifinal_0'];
+  const semi1bp = STATE.bracketPreds['semifinal_1'];
+  const loser0 = semi0bp ? (semi0bp.pred_winner === semi0.team_home ? semi0.team_away : semi0.team_home) : '?';
+  const loser1 = semi1bp ? (semi1bp.pred_winner === semi1.team_home ? semi1.team_away : semi1.team_home) : '?';
+
   const terceroMatch = {
     virtualId:'tercero_0',
     match1Id:'semifinal_0', match2Id:'semifinal_1',
-    team_home: STATE.bracketPreds['semifinal_0'] ? (STATE.bracketPreds['semifinal_0'].pred_winner===STATE.matches.find(m=>m.id==STATE.bracketPreds['semifinal_0']?.match1Id)?.team_home ? STATE.bracketPreds['semifinal_0'].pred_away : STATE.bracketPreds['semifinal_0'].pred_home) : '?',
-    team_away: STATE.bracketPreds['semifinal_1'] ? (STATE.bracketPreds['semifinal_1'].pred_winner===STATE.matches.find(m=>m.id==STATE.bracketPreds['semifinal_1']?.match1Id)?.team_home ? STATE.bracketPreds['semifinal_1'].pred_away : STATE.bracketPreds['semifinal_1'].pred_home) : '?',
+    team_home: loser0,
+    team_away: loser1,
     stage:'semifinal'
   };
 
