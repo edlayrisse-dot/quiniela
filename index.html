@@ -509,7 +509,10 @@ async function loadParticipant(token){
     STATE.allPredictions=allPredsRes.by_match||{};
     STATE.bracketPreds={};
     (predRes.predictions||[]).forEach(p=>STATE.predictions[p.match_id]=p);
-    (bracketRes.predictions||[]).forEach(p=>STATE.bracketPreds[p.match_id]=p);
+    (bracketRes.predictions||[]).forEach(p=>{
+      // Use string key for consistency
+      STATE.bracketPreds[String(p.match_id)]=p;
+    });
     STATE.ranking=rankRes.ranking||[];
     const myRankIdx=STATE.ranking.findIndex(r=>r.token===token);
     STATE.myRank=myRankIdx>=0?myRankIdx+1:'–';
@@ -633,7 +636,7 @@ function renderMatches(){
 function getMatchById(id){ return STATE.matches.find(m=>m.id==id); }
 
 function getWinnerFromBracket(matchId){
-  const bp = STATE.bracketPreds[matchId];
+  const bp = STATE.bracketPreds[String(matchId)];
   if(!bp) return null;
   return bp.pred_winner;
 }
@@ -859,7 +862,7 @@ async function saveBracketMatch(matchId, teamHome, teamAway){
   if(home===''||away===''){toast('Rellena el marcador');return}
   if(!winner){toast('Elige quién gana (en caso de empate)');return}
 
-  STATE.bracketPreds[matchId] = {pred_home:parseInt(home), pred_away:parseInt(away), pred_winner:winner};
+  STATE.bracketPreds[String(matchId)] = {pred_home:parseInt(home), pred_away:parseInt(away), pred_winner:winner};
 
   showLoading('Guardando...');
   try{
