@@ -1094,58 +1094,9 @@ function updateSubmittedState(){
 }
 
 function updateDeadlineBanner(){
+  // Pronósticos de eliminatorias cerrados — banner oculto
   const banner = document.getElementById('deadline-banner');
-  if (!banner) return;
-  const now = new Date();
-  const groupsCutoff   = new Date('2026-06-11T15:00:00Z'); // 11 jun 17:00 Madrid
-  const knockoutCutoff = new Date('2026-06-29T17:55:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
-
-  // Both closed
-  if (now >= knockoutCutoff) {
-    banner.style.display = 'block';
-    banner.style.background = '#fff0ef';
-    banner.style.border = '1px solid #ffb3ae';
-    banner.style.color = '#FF574D';
-    banner.innerHTML = '🔒 Los pronósticos de eliminatorias están cerrados.';
-    return;
-  }
-
-  // Groups closed, knockout open
-  if (now >= groupsCutoff) {
-    const diff = knockoutCutoff - now;
-    const days  = Math.floor(diff / (1000*60*60*24));
-    const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
-    const mins  = Math.floor((diff % (1000*60*60)) / (1000*60));
-    banner.style.display = 'block';
-    banner.style.background = '#e8f7ee';
-    banner.style.border = '1px solid #a5d6b5';
-    banner.style.color = '#1a7f3c';
-    if (days > 0) {
-      banner.innerHTML = `🟢 <strong>Etapa 2 abierta</strong> — pronósticos de eliminatorias cierran en <strong>${days}d ${hours}h ${mins}m</strong> (29 jun 20:00)`;
-    } else {
-      banner.innerHTML = `🚨 ¡Quedan solo <strong>${hours}h ${mins}m</strong> para cerrar los pronósticos de eliminatorias!`;
-    }
-    setTimeout(updateDeadlineBanner, 30000);
-    return;
-  }
-
-  // Groups still open
-  const diff = groupsCutoff - now;
-  const days  = Math.floor(diff / (1000*60*60*24));
-  const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
-  const mins  = Math.floor((diff % (1000*60*60)) / (1000*60));
-  banner.style.display = 'block';
-  banner.style.background = '#fff8e1';
-  banner.style.border = '1px solid #ffe082';
-  banner.style.color = '#7a5c00';
-  if (days > 0) {
-    banner.innerHTML = `⏳ Pronósticos de grupos cierran en <strong>${days}d ${hours}h ${mins}m</strong> — 11 jun 17:00`;
-  } else if (hours > 0) {
-    banner.innerHTML = `⏳ ¡Quedan solo <strong>${hours}h ${mins}m</strong> para cerrar pronósticos de grupos!`;
-  } else {
-    banner.innerHTML = `🚨 ¡Menos de <strong>${mins} minutos</strong> para cerrar los pronósticos!`;
-  }
-  setTimeout(updateDeadlineBanner, 30000);
+  if(banner) banner.style.display = 'none';
 }
 
 function switchTab(name){
