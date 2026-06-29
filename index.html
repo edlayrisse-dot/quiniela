@@ -683,19 +683,30 @@ function renderBracketMatch(vm, isLocked){
   const bp = STATE.bracketPreds[vm.virtualId] || {};
   const hasPred = bp.pred_winner;
   const mult = getStageMultiplier(vm.stage);
-  const pts = getStagePoints(vm.stage);
+  // Find real match for result (for virtual matches, no direct result)
+  // Virtual matches don't have direct results yet — only R32 do
   const borderColor = hasPred ? 'var(--green)' : 'var(--border)';
-  const predText = hasPred ? `<div style="font-size:9px;color:var(--green);text-align:center;padding:2px">${bp.pred_home}–${bp.pred_away} (${bp.pred_winner})</div>` : '';
+
+  // Points badge
+  let ptsBadge = '';
+  if(hasPred){
+    // For virtual (non-R32) matches we don't have direct result lookup yet
+    // Show pred score + winner
+    ptsBadge = `<div style="font-size:9px;color:var(--green);text-align:center;padding:2px 4px;border-top:0.5px solid var(--border)">${bp.pred_home}–${bp.pred_away} → ${bp.pred_winner}</div>`;
+  }
+
+  const homeColor = vm.team_home==='?'?'var(--muted)':'var(--dark)';
+  const awayColor = vm.team_away==='?'?'var(--muted)':'var(--dark)';
 
   return `<div onclick="openBracketMatchModal('${vm.virtualId}','${vm.team_home}','${vm.team_away}','${vm.stage}','${vm.match1Id}','${vm.match2Id}')"
-    style="border:0.5px solid ${borderColor};border-radius:8px;background:var(--surface-2);margin:3px 6px;overflow:hidden;cursor:${isLocked?'default':'pointer'}">
+    style="border:0.5px solid ${borderColor};border-radius:8px;background:var(--surface-2);margin:3px 6px;overflow:hidden;cursor:default">
     <div style="display:flex;align-items:center;padding:5px 7px;border-bottom:0.5px solid var(--border);gap:4px">
-      <span style="flex:1;font-size:10px;font-weight:500;color:${vm.team_home==='?'?'var(--muted)':'var(--dark)'}">${vm.team_home}</span>
+      <span style="flex:1;font-size:10px;font-weight:500;color:${homeColor}">${vm.team_home}</span>
     </div>
     <div style="display:flex;align-items:center;padding:5px 7px;gap:4px">
-      <span style="flex:1;font-size:10px;font-weight:500;color:${vm.team_away==='?'?'var(--muted)':'var(--dark)'}">${vm.team_away}</span>
+      <span style="flex:1;font-size:10px;font-weight:500;color:${awayColor}">${vm.team_away}</span>
     </div>
-    ${predText}
+    ${ptsBadge}
   </div>`;
 }
 
@@ -808,6 +819,18 @@ function renderKnockout(){
           </button>
         </div>`;
 
+        // Calculate points for R32
+        let r32pts = null; let r32ptsCls = '';
+        if(hasPred && hasResult){
+          const rh=parseInt(m.result_home), ra=parseInt(m.result_away);
+          const realWinner = rh>ra ? m.team_home : m.team_away;
+          const isExact = parseInt(predH)===rh && parseInt(predA)===ra;
+          const isWinner = pred.pred_winner === realWinner;
+          if(isExact){r32pts=5;r32ptsCls='color:#1a7f3c;background:#e8f7ee';}
+          else if(isWinner){r32pts=3;r32ptsCls='color:#b07d00;background:#fff8e1';}
+          else{r32pts=0;r32ptsCls='color:#FF574D;background:#fff0ef';}
+        }
+        const ptsBadgeR32 = r32pts!==null ? `<div style="text-align:center;padding:2px 6px"><span style="${r32ptsCls};font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px">${r32pts}pts</span></div>` : '';
         html += `<div>
           <div style="border:0.5px solid ${borderColor};border-radius:8px;background:var(--surface-2);margin:3px 6px;overflow:hidden">
             <div style="cursor:default">
@@ -819,7 +842,7 @@ function renderKnockout(){
                 <span style="flex:1;font-size:10px;font-weight:500;color:${awayWin||predAwayWin?'var(--green)':'var(--dark)'}">${m.team_away}</span>
                 <span style="font-size:10px;font-weight:600;color:${predAwayWin?'var(--green)':'var(--muted)'}">${hasPred?predA:(hasResult?m.result_away:'–')}</span>
               </div>
-              ${bottomText}
+              ${ptsBadgeR32}
             </div>
             ${othersBtn}
           </div>
@@ -1340,19 +1363,38 @@ async function viewPredictions(token, name){
       });
       html += `<div style="margin-top:16px;padding-top:12px;border-top:1.5px solid var(--border)">
         <div style="font-size:12px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🏆 Bracket eliminatorias (${bracketPreds.length} partidos)</div>`;
+      const stageMult = {'ronda32':1,'octavos':2,'cuartos':3,'semifinal':4,'final':5};
       ['ronda32','octavos','cuartos','semifinal','final'].forEach(stage => {
         if(!byStage[stage]) return;
-        html += `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:6px 0 4px">${stageLabels[stage]||stage}</div>`;
+        const mult = stageMult[stage]||1;
+        html += `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:6px 0 4px">${stageLabels[stage]||stage} <span style="font-weight:400">(×${mult})</span></div>`;
         byStage[stage].forEach(p => {
           const m = p.match;
-          const home = m ? m.team_home : p.match_id;
+          const home = m ? m.team_home : '?';
           const away = m ? m.team_away : '?';
-          const hasResult = m && m.result_home !== '' && m.result_home !== null;
-          html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:0.5px solid rgba(0,0,0,0.08);border-radius:8px;margin-bottom:6px;font-size:13px">
-            <div style="flex:1;font-weight:500">${home}</div>
-            <div style="text-align:center;min-width:80px"><strong>${p.pred_home} – ${p.pred_away}</strong><div style="font-size:10px;color:var(--green)">→ ${p.pred_winner}</div></div>
-            <div style="flex:1;text-align:right;font-weight:500">${away}</div>
-            ${hasResult?`<div style="font-size:11px;color:var(--muted)">${m.result_home}–${m.result_away}</div>`:''}
+          const hasResult = m && m.result_home !== '' && m.result_home !== null && m.result_home !== undefined;
+          // Calculate points
+          let pts = null; let ptsLabel = ''; let ptsCls = ''; let bgColor = '#fff';
+          if(hasResult){
+            const rh = parseInt(m.result_home); const ra = parseInt(m.result_away);
+            const realWinner = rh > ra ? m.team_home : m.team_away;
+            const isExact = parseInt(p.pred_home)===rh && parseInt(p.pred_away)===ra;
+            const isWinner = p.pred_winner === realWinner;
+            if(isExact){ pts=5*mult; ptsLabel='✓ Exacto'; ptsCls='background:#e8f7ee;color:#1a7f3c'; bgColor='#f0fff4'; }
+            else if(isWinner){ pts=3*mult; ptsLabel='✓ Ganador'; ptsCls='background:#fff8e1;color:#b07d00'; bgColor='#fffdf0'; }
+            else { pts=0; ptsLabel='✗ Fallo'; ptsCls='background:#fff0ef;color:#FF574D'; bgColor='#fff8f8'; }
+          }
+          const resultHtml = hasResult ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">Oficial: ${m.result_home}–${m.result_away}</div>` : '';
+          const ptsHtml = pts!==null ? `<span style="${ptsCls};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${pts}pts ${ptsLabel}</span>` : '';
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${bgColor};border:0.5px solid rgba(0,0,0,0.08);border-radius:8px;margin-bottom:6px;font-size:13px">
+            <div style="flex:1;font-weight:500;font-size:12px">${home}</div>
+            <div style="text-align:center;min-width:70px">
+              <div><strong>${p.pred_home} – ${p.pred_away}</strong></div>
+              <div style="font-size:10px;color:var(--green)">→ ${p.pred_winner}</div>
+              ${resultHtml}
+            </div>
+            <div style="flex:1;text-align:right;font-weight:500;font-size:12px">${away}</div>
+            <div style="min-width:60px;text-align:right">${ptsHtml}</div>
           </div>`;
         });
       });
