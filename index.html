@@ -1286,7 +1286,11 @@ async function viewPredictions(token, name){
   document.getElementById('modal-body').innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargando...</p>';
   document.getElementById('pred-modal').style.display = 'block';
   try {
-    const res = await api({action:'getPredictions', token});
+    const [res, bonusRes, bracketRes] = await Promise.all([
+      api({action:'getPredictions', token}),
+      api({action:'getBonus', token}),
+      api({action:'getBracket', token})
+    ]);
     const preds = res.predictions || [];
     const predMap = {};
     preds.forEach(p => predMap[p.match_id] = p);
@@ -1301,7 +1305,7 @@ async function viewPredictions(token, name){
     const total = STATE.matches.filter(m => m.stage === 'grupos').length;
     const filled = preds.length;
     html += `<div style="background:#f4f4f2;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:#444">
-      <strong>${filled}</strong> de <strong>${total}</strong> partidos pronosticados
+      <strong>${filled}</strong> de <strong>${total}</strong> partidos de grupos pronosticados
     </div>`;
     Object.entries(groups).sort().forEach(([gName, matches]) => {
       html += `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:8px 0 4px">${gName}</div>`;
@@ -1323,8 +1327,38 @@ async function viewPredictions(token, name){
         </div>`;
       });
     });
+    // Bracket predictions
+    const bracketPreds = bracketRes.predictions || [];
+    if(bracketPreds.length > 0){
+      const stageLabels = {'ronda32':'Ronda de 32','octavos':'Octavos','cuartos':'Cuartos','semifinal':'Semifinales','final':'Final'};
+      const byStage = {};
+      bracketPreds.forEach(p => {
+        const m = STATE.matches.find(m2=>String(m2.id)===String(p.match_id));
+        const stage = m ? m.stage : 'ronda32';
+        if(!byStage[stage]) byStage[stage] = [];
+        byStage[stage].push({...p, match: m});
+      });
+      html += `<div style="margin-top:16px;padding-top:12px;border-top:1.5px solid var(--border)">
+        <div style="font-size:12px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🏆 Bracket eliminatorias (${bracketPreds.length} partidos)</div>`;
+      ['ronda32','octavos','cuartos','semifinal','final'].forEach(stage => {
+        if(!byStage[stage]) return;
+        html += `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:6px 0 4px">${stageLabels[stage]||stage}</div>`;
+        byStage[stage].forEach(p => {
+          const m = p.match;
+          const home = m ? m.team_home : p.match_id;
+          const away = m ? m.team_away : '?';
+          const hasResult = m && m.result_home !== '' && m.result_home !== null;
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:0.5px solid rgba(0,0,0,0.08);border-radius:8px;margin-bottom:6px;font-size:13px">
+            <div style="flex:1;font-weight:500">${home}</div>
+            <div style="text-align:center;min-width:80px"><strong>${p.pred_home} – ${p.pred_away}</strong><div style="font-size:10px;color:var(--green)">→ ${p.pred_winner}</div></div>
+            <div style="flex:1;text-align:right;font-weight:500">${away}</div>
+            ${hasResult?`<div style="font-size:11px;color:var(--muted)">${m.result_home}–${m.result_away}</div>`:''}
+          </div>`;
+        });
+      });
+      html += '</div>';
+    }
     // Bonus
-    const bonusRes = await api({action:'getBonus', token});
     if (bonusRes.campeon || bonusRes.goleador) {
       html += `<div style="margin-top:12px;padding:10px 12px;background:#fff0ef;border-radius:8px;font-size:13px">
         <div style="font-weight:600;margin-bottom:6px;color:var(--red)">⭐ Bonuses</div>
