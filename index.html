@@ -795,7 +795,7 @@ function renderKnockout(){
         const predAwayWin = hasPred && pred.pred_winner === m.team_away;
         const predH = hasPred ? pred.pred_home : '–';
         const predA = hasPred ? pred.pred_away : '–';
-        const bottomText = hasPred ? '' : `<div style="font-size:9px;color:var(--muted);text-align:center;padding:2px 0">toca para pronosticar</div>`;
+        const bottomText = '';
         const allPreds = STATE.allPredictions[m.id] || [];
         const othersCount = allPreds.length;
         const othersBtn = `<div style="border-top:0.5px solid var(--border);padding:4px 7px">
@@ -807,7 +807,7 @@ function renderKnockout(){
 
         html += `<div>
           <div style="border:0.5px solid ${borderColor};border-radius:8px;background:var(--surface-2);margin:3px 6px;overflow:hidden">
-            <div onclick="openBracketMatchModal(${m.id},'${m.team_home}','${m.team_away}','ronda32',null,null)" style="cursor:pointer">
+            <div style="cursor:default">
               <div style="display:flex;align-items:center;padding:5px 7px;border-bottom:0.5px solid var(--border);gap:4px;${homeWin?'background:var(--green-bg)':predHomeWin?'background:#f0fff4':''}">
                 <span style="flex:1;font-size:10px;font-weight:500;color:${homeWin||predHomeWin?'var(--green)':'var(--dark)'}">${m.team_home}</span>
                 <span style="font-size:10px;font-weight:600;color:${predHomeWin?'var(--green)':'var(--muted)'}">${hasPred?predH:(hasResult?m.result_home:'–')}</span>
@@ -845,6 +845,9 @@ function renderKnockout(){
 }
 
 function openBracketMatchModal(matchIdOrVirtual, teamHome, teamAway, stage, m1id, m2id){
+  // Bracket cerrado
+  toast('🔒 Los pronósticos de eliminatorias están cerrados');
+  return;
   if(teamHome === '?' || teamAway === '?'){
     toast('Primero pronostica las rondas anteriores');
     return;
@@ -961,7 +964,7 @@ function matchHTML(m){
   // Auto-lock by stage deadline (Madrid time = UTC+2 in summer)
   const now = new Date();
   const groupsCutoff   = new Date('2026-06-11T15:00:00Z'); // 11 jun 17:00 Madrid
-  const knockoutCutoff = new Date('2026-06-29T17:00:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
+  const knockoutCutoff = new Date('2026-06-29T17:55:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
   const isGroups   = m.stage === 'grupos';
   const isKnockout = m.stage !== 'grupos';
   const autoLocked = (isGroups && now >= groupsCutoff) || (isKnockout && now >= knockoutCutoff);
@@ -1095,7 +1098,7 @@ function updateDeadlineBanner(){
   if (!banner) return;
   const now = new Date();
   const groupsCutoff   = new Date('2026-06-11T15:00:00Z'); // 11 jun 17:00 Madrid
-  const knockoutCutoff = new Date('2026-06-29T17:00:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
+  const knockoutCutoff = new Date('2026-06-29T17:55:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
 
   // Both closed
   if (now >= knockoutCutoff) {
