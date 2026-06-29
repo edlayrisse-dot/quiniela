@@ -961,7 +961,7 @@ function matchHTML(m){
   // Auto-lock by stage deadline (Madrid time = UTC+2 in summer)
   const now = new Date();
   const groupsCutoff   = new Date('2026-06-11T15:00:00Z'); // 11 jun 17:00 Madrid
-  const knockoutCutoff = new Date('2026-06-29T17:55:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
+  const knockoutCutoff = new Date('2026-06-29T17:00:00Z'); // Cerrado manualmente 29 jun 19:55 Madrid
   const isGroups   = m.stage === 'grupos';
   const isKnockout = m.stage !== 'grupos';
   const autoLocked = (isGroups && now >= groupsCutoff) || (isKnockout && now >= knockoutCutoff);
