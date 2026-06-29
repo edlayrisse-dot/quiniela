@@ -454,7 +454,7 @@ input,select{font-family:var(--font)}
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkwzWc2Qg4fqvpMdFcG0x6ytu0rlkhtMOxelK6b2xAZk-vnvuTJ6c7_r7XRp_itAzZrQ/exec";
 
-let STATE = {token:null,participant:null,matches:[],predictions:{},allPredictions:{},bracketPreds:{},ranking:[],myRank:null,myPts:0,submitted:false};
+let STATE = {token:null,participant:null,matches:[],predictions:{},allPredictions:{},bracketPreds:{},allBrackets:{},ranking:[],myRank:null,myPts:0,submitted:false};
 
 // Official bracket structure (match IDs from Sheet)
 const BRACKET = {
@@ -503,20 +503,22 @@ window.addEventListener('DOMContentLoaded',async()=>{
 async function loadParticipant(token){
   showLoading('Cargando tu quiniela...');
   try{
-    const [partRes,matchRes,predRes,rankRes,bonusRes,allPredsRes,bracketRes]=await Promise.all([
+    const [partRes,matchRes,predRes,rankRes,bonusRes,allPredsRes,bracketRes,allBracketsRes]=await Promise.all([
       api({action:'getParticipant',token}),
       api({action:'getMatches'}),
       api({action:'getPredictions',token}),
       api({action:'getRanking'}),
       api({action:'getBonus',token}),
       api({action:'getAllPredictions'}),
-      api({action:'getBracket',token})
+      api({action:'getBracket',token}),
+      api({action:'getAllBrackets'})
     ]);
     if(!partRes.ok){hideLoading();showPage('register');return}
     STATE.token=token;STATE.participant=partRes;
     STATE.matches=matchRes.matches||[];
     STATE.predictions={};
     STATE.allPredictions=allPredsRes.by_match||{};
+    STATE.allBrackets=(allBracketsRes&&allBracketsRes.by_match)||{};
     STATE.bracketPreds={};
     (predRes.predictions||[]).forEach(p=>STATE.predictions[p.match_id]=p);
     (bracketRes.predictions||[]).forEach(p=>{
@@ -798,10 +800,11 @@ function renderKnockout(){
         const bottomText = '';
         const allPreds = STATE.allPredictions[m.id] || [];
         const othersCount = allPreds.length;
+        const bracketCount = (STATE.allBrackets[m.id]||[]).length;
         const othersBtn = `<div style="border-top:0.5px solid var(--border);padding:4px 7px">
-          <button onclick="event.stopPropagation();showMatchPredictions(${m.id},'${m.team_home}','${m.team_away}')" 
+          <button onclick="event.stopPropagation();showBracketPredictions(${m.id},'${m.team_home}','${m.team_away}')" 
             style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:9px;font-weight:500;padding:0">
-            👥 Ver ${othersCount} pronósticos
+            👥 Ver ${bracketCount} pronósticos
           </button>
         </div>`;
 
@@ -1176,6 +1179,50 @@ async function loadAdminData(){
     document.getElementById('admin-participants-container').innerHTML=pHtml;
   }catch(e){toast('Error al cargar')}
   hideLoading();
+}
+
+function showBracketPredictions(matchId, homeTeam, awayTeam){
+  const preds = STATE.allBrackets[matchId] || [];
+  const match = STATE.matches.find(m => m.id == matchId);
+  const hasResult = match && match.result_home !== '' && match.result_home !== null;
+
+  document.getElementById('modal-title').textContent = `👥 ${homeTeam} vs ${awayTeam}`;
+
+  if(preds.length === 0){
+    document.getElementById('modal-body').innerHTML = '<p style="color:#888;text-align:center;padding:20px">Nadie ha pronosticado este partido del bracket.</p>';
+    document.getElementById('pred-modal').style.display = 'block';
+    return;
+  }
+
+  // Group by score
+  const scoreMap = {};
+  preds.forEach(p => {
+    const key = `${p.pred_home}-${p.pred_away}`;
+    if(!scoreMap[key]) scoreMap[key] = {home: p.pred_home, away: p.pred_away, winner: p.pred_winner, people: []};
+    scoreMap[key].people.push(p.nombre + ' ' + p.apellido);
+  });
+  const sorted = Object.values(scoreMap).sort((a,b) => b.people.length - a.people.length);
+
+  let html = `<div style="font-size:12px;color:var(--muted);margin-bottom:14px;text-align:center">${preds.length} pronósticos del bracket</div>`;
+  if(hasResult){
+    html += `<div style="background:#f4f4f2;border-radius:8px;padding:10px;text-align:center;margin-bottom:14px;font-size:13px">
+      Resultado oficial: <strong style="font-size:16px">${match.result_home} – ${match.result_away}</strong>
+    </div>`;
+  }
+  sorted.forEach(s => {
+    const pct = Math.round(s.people.length / preds.length * 100);
+    html += `<div style="background:#f9f9f9;border-radius:10px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:20px;font-weight:700">${s.home} – ${s.away}</span>
+        <span style="font-size:12px;color:var(--muted)">${s.people.length} persona${s.people.length>1?'s':''} (${pct}%)</span>
+      </div>
+      <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:4px">Avanza: ${s.winner}</div>
+      <div style="font-size:12px;color:#555;line-height:1.6">${s.people.join(', ')}</div>
+    </div>`;
+  });
+
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('pred-modal').style.display = 'block';
 }
 
 function showMatchPredictions(matchId, homeTeam, awayTeam){
