@@ -1044,24 +1044,64 @@ function matchHTML(m){
   </div>`;
 }
 
+function calcBracketPts(nombre, apellido){
+  const stageMult = {'ronda32':1,'octavos':2,'cuartos':3,'semifinal':4,'final':5};
+  let pts = 0;
+  const allB = STATE.allBrackets || {};
+  Object.entries(allB).forEach(([matchId, preds]) => {
+    const m = STATE.matches.find(m=>String(m.id)===String(matchId));
+    if(!m) return;
+    const hasResult = m.result_home!=='' && m.result_home!==null && m.result_home!==undefined;
+    if(!hasResult) return;
+    const myPred = preds.find(p => p.nombre===nombre && p.apellido===apellido);
+    if(!myPred) return;
+    const mult = stageMult[m.stage]||1;
+    const rh=parseInt(m.result_home), ra=parseInt(m.result_away);
+    const realWinner = rh>ra ? m.team_home : m.team_away;
+    const isExact = parseInt(myPred.pred_home)===rh && parseInt(myPred.pred_away)===ra;
+    const isWinner = myPred.pred_winner === realWinner;
+    pts += isExact ? 5*mult : isWinner ? 3*mult : 0;
+  });
+  return pts;
+}
+
 function renderRanking(){
   const list=document.getElementById('ranking-list');
   const medals=['🥇','🥈','🥉'];
-  list.innerHTML=STATE.ranking.map((r,i)=>{
+  // Build ranking with bracket points added
+  const enriched = STATE.ranking.map(r => {
+    const bracketPts = calcBracketPts(r.nombre, r.apellido);
+    return {...r, bracketPts, pts_with_bracket: r.pts_total + bracketPts};
+  });
+  // Re-sort by pts_with_bracket desc, then exactos desc
+  enriched.sort((a,b) => b.pts_with_bracket - a.pts_with_bracket || b.exactos - a.exactos);
+
+  list.innerHTML=enriched.map((r,i)=>{
     const isMe=r.token===STATE.token;
     const num=i<3?medals[i]:i+1;
     const avatarColors=['#FF574D','#e04540','#c93b30','#999','#bbb'];
     const bg=avatarColors[Math.min(i,4)];
+    const bracketBadge = r.bracketPts>0 ? ` · <span style="color:var(--red)">+${r.bracketPts} bracket</span>` : '';
     return `<div class="rank-row${isMe?' me':''}">
       <div class="rank-num">${num}</div>
       <div class="avatar" style="background:${bg}">${r.nombre[0]}${r.apellido[0]}</div>
       <div class="rank-info">
         <div class="rank-name${isMe?' me':''}">${r.nombre} ${r.apellido}${isMe?' (tú)':''}</div>
-        <div class="rank-sub">${r.exactos} exactos${r.bonus_pts>0?' · +'+r.bonus_pts+' bonus':''}</div>
+        <div class="rank-sub">${r.exactos} exactos${r.bonus_pts>0?' · +'+r.bonus_pts+' bonus':''}${bracketBadge}</div>
       </div>
-      <div class="rank-pts${isMe?' me':''}">${r.pts_total}</div>
+      <div class="rank-pts${isMe?' me':''}">${r.pts_with_bracket}</div>
     </div>`;
   }).join('');
+
+  // Also update hero bar with correct total for current user
+  const me = enriched.find(r=>r.token===STATE.token);
+  if(me){
+    const myNewRank = enriched.findIndex(r=>r.token===STATE.token)+1;
+    document.getElementById('hero-rank').textContent='#'+myNewRank;
+    document.getElementById('hero-pts').textContent=me.pts_with_bracket+' pts';
+    document.getElementById('stat-rank').textContent=myNewRank;
+    document.getElementById('stat-pts').textContent=me.pts_with_bracket;
+  }
 }
 
 async function savePredictions(){
