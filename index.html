@@ -1389,51 +1389,117 @@ async function viewPredictions(token, name){
     const bracketPreds = bracketRes.predictions || [];
     if(bracketPreds.length > 0){
       const stageLabels = {'ronda32':'Ronda de 32','octavos':'Octavos','cuartos':'Cuartos','semifinal':'Semifinales','final':'Final'};
-      const byStage = {};
-      bracketPreds.forEach(p => {
-        const m = STATE.matches.find(m2=>String(m2.id)===String(p.match_id));
-        const stage = m ? m.stage : 'ronda32';
-        if(!byStage[stage]) byStage[stage] = [];
-        byStage[stage].push({...p, match: m});
-      });
-      html += `<div style="margin-top:16px;padding-top:12px;border-top:1.5px solid var(--border)">
-        <div style="font-size:12px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🏆 Bracket eliminatorias (${bracketPreds.length} partidos)</div>`;
       const stageMult = {'ronda32':1,'octavos':2,'cuartos':3,'semifinal':4,'final':5};
-      ['ronda32','octavos','cuartos','semifinal','final'].forEach(stage => {
-        if(!byStage[stage]) return;
-        const mult = stageMult[stage]||1;
-        html += `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:6px 0 4px">${stageLabels[stage]||stage} <span style="font-weight:400">(×${mult})</span></div>`;
-        byStage[stage].forEach(p => {
-          const m = p.match;
-          const home = m ? m.team_home : '?';
-          const away = m ? m.team_away : '?';
-          const hasResult = m && m.result_home !== '' && m.result_home !== null && m.result_home !== undefined;
-          // Calculate points
-          let pts = null; let ptsLabel = ''; let ptsCls = ''; let bgColor = '#fff';
-          if(hasResult){
-            const rh = parseInt(m.result_home); const ra = parseInt(m.result_away);
-            const realWinner = rh > ra ? m.team_home : m.team_away;
-            const isExact = parseInt(p.pred_home)===rh && parseInt(p.pred_away)===ra;
-            const isWinner = p.pred_winner === realWinner;
-            if(isExact){ pts=5*mult; ptsLabel='✓ Exacto'; ptsCls='background:#e8f7ee;color:#1a7f3c'; bgColor='#f0fff4'; }
-            else if(isWinner){ pts=3*mult; ptsLabel='✓ Ganador'; ptsCls='background:#fff8e1;color:#b07d00'; bgColor='#fffdf0'; }
-            else { pts=0; ptsLabel='✗ Fallo'; ptsCls='background:#fff0ef;color:#FF574D'; bgColor='#fff8f8'; }
-          }
-          const resultHtml = hasResult ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">Oficial: ${m.result_home}–${m.result_away}</div>` : '';
-          const ptsHtml = pts!==null ? `<span style="${ptsCls};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${pts}pts ${ptsLabel}</span>` : '';
-          html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${bgColor};border:0.5px solid rgba(0,0,0,0.08);border-radius:8px;margin-bottom:6px;font-size:13px">
-            <div style="flex:1;font-weight:500;font-size:12px">${home}</div>
-            <div style="text-align:center;min-width:70px">
-              <div><strong>${p.pred_home} – ${p.pred_away}</strong></div>
-              <div style="font-size:10px;color:var(--green)">→ ${p.pred_winner}</div>
-              ${resultHtml}
-            </div>
-            <div style="flex:1;text-align:right;font-weight:500;font-size:12px">${away}</div>
-            <div style="min-width:60px;text-align:right">${ptsHtml}</div>
-          </div>`;
-        });
+
+      // Map de pronosticos de este participante: id (string) -> {ph,pa,winner}
+      const bMap = {};
+      bracketPreds.forEach(p => { bMap[String(p.match_id)] = {ph: parseInt(p.pred_home), pa: parseInt(p.pred_away), winner: p.pred_winner}; });
+      const getWinner = id => { const b = bMap[String(id)]; return b ? b.winner : null; };
+
+      function predTeamsForRound(round, idx){
+        if(round==='octavos'){
+          const pair = BRACKET.octavosBySheetId[idx];
+          return [getWinner(pair[0]), getWinner(pair[1])];
+        }
+        if(round==='cuartos'){
+          const pair = BRACKET.cuartos[idx];
+          return [getWinner('octavos_'+pair[0]), getWinner('octavos_'+pair[1])];
+        }
+        if(round==='semifinal'){
+          const pair = BRACKET.semifinal[idx];
+          return [getWinner('cuartos_'+pair[0]), getWinner('cuartos_'+pair[1])];
+        }
+        if(round==='final'){
+          return [getWinner('semifinal_0'), getWinner('semifinal_1')];
+        }
+        return [null, null];
+      }
+
+      function parseSlot(slot){
+        if(!slot) return null;
+        if(slot.indexOf('oct_')===0)   return {round:'octavos',   idx:parseInt(slot.split('_')[1])};
+        if(slot.indexOf('cua_')===0)   return {round:'cuartos',   idx:parseInt(slot.split('_')[1])};
+        if(slot.indexOf('semi_')===0)  return {round:'semifinal', idx:parseInt(slot.split('_')[1])};
+        if(slot.indexOf('final')===0)  return {round:'final',     idx:0};
+        return null;
+      }
+
+      const rows = {ronda32:[], octavos:[], cuartos:[], semifinal:[], final:[]};
+
+      STATE.matches.forEach(m => {
+        if(m.stage !== 'ronda32') return;
+        const pred = bMap[String(m.id)];
+        if(!pred) return;
+        const hasResult = m.result_home!=='' && m.result_home!==null && m.result_home!==undefined;
+        let pts=null, label='', cls='', bg='#fff';
+        if(hasResult){
+          const rh=parseInt(m.result_home), ra=parseInt(m.result_away);
+          const realWinner = rh>ra ? m.team_home : m.team_away;
+          if(pred.ph===rh && pred.pa===ra){ pts=5; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; bg='#f0fff4'; }
+          else if(pred.winner===realWinner){ pts=3; label='✓ Ganador'; cls='background:#fff8e1;color:#b07d00'; bg='#fffdf0'; }
+          else { pts=0; label='✗ Fallo'; cls='background:#fff0ef;color:#FF574D'; bg='#fff8f8'; }
+        }
+        rows.ronda32.push({home:m.team_home, away:m.team_away, pred, hasResult, result: hasResult?(m.result_home+'–'+m.result_away):null, pts, label, cls, bg});
       });
-      html += '</div>';
+
+      STATE.matches.forEach(m => {
+        if(!['octavos','cuartos','semifinal','final'].includes(m.stage)) return;
+        const slotInfo = parseSlot(m.bracket_slot);
+        if(!slotInfo) return;
+        const virtualId = slotInfo.round + '_' + slotInfo.idx;
+        const pred = bMap[virtualId];
+        if(!pred) return;
+
+        const predTeams = predTeamsForRound(slotInfo.round, slotInfo.idx);
+        const t1In = predTeams[0]===m.team_home || predTeams[0]===m.team_away;
+        const t2In = predTeams[1]===m.team_home || predTeams[1]===m.team_away;
+        const mult = stageMult[m.stage]||1;
+        const hasResult = m.result_home!=='' && m.result_home!==null && m.result_home!==undefined;
+
+        let pts=null, label='', cls='', bg='#fff';
+        if(hasResult){
+          const rh=parseInt(m.result_home), ra=parseInt(m.result_away);
+          const realWinner = rh>ra ? m.team_home : m.team_away;
+          if(t1In && t2In){
+            if(pred.ph===rh && pred.pa===ra){ pts=5*mult; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; bg='#f0fff4'; }
+            else if(pred.winner===realWinner){ pts=3*mult; label='✓ Ganador'; cls='background:#fff8e1;color:#b07d00'; bg='#fffdf0'; }
+            else { pts=0; label='✗ Fallo'; cls='background:#fff0ef;color:#FF574D'; bg='#fff8f8'; }
+          } else if(t1In || t2In){
+            if(pred.winner===realWinner){ pts=3*mult; label='✓ Ganador (1 equipo)'; cls='background:#fff8e1;color:#b07d00'; bg='#fffdf0'; }
+            else { pts=0; label='✗ Fallo'; cls='background:#fff0ef;color:#FF574D'; bg='#fff8f8'; }
+          } else {
+            pts=0; label='✗ Ninguno llegó'; cls='background:#fff0ef;color:#FF574D'; bg='#fff8f8';
+          }
+        }
+        rows[m.stage].push({home:m.team_home, away:m.team_away, pred, hasResult, result: hasResult?(m.result_home+'–'+m.result_away):null, pts, label, cls, bg});
+      });
+
+      const totalRows = Object.values(rows).reduce((s,a)=>s+a.length,0);
+      if(totalRows > 0){
+        html += `<div style="margin-top:16px;padding-top:12px;border-top:1.5px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🏆 Bracket eliminatorias (${totalRows} partidos)</div>`;
+
+        ['ronda32','octavos','cuartos','semifinal','final'].forEach(stage => {
+          if(!rows[stage].length) return;
+          const mult = stageMult[stage]||1;
+          html += `<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:6px 0 4px">${stageLabels[stage]} <span style="font-weight:400">(×${mult})</span></div>`;
+          rows[stage].forEach(r => {
+            const resultHtml = r.hasResult ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">Oficial: ${r.result}</div>` : '';
+            const ptsHtml = r.pts!==null ? `<span style="${r.cls};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${r.pts}pts ${r.label}</span>` : '';
+            html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${r.bg};border:0.5px solid rgba(0,0,0,0.08);border-radius:8px;margin-bottom:6px;font-size:13px">
+              <div style="flex:1;font-weight:500;font-size:12px">${r.home}</div>
+              <div style="text-align:center;min-width:70px">
+                <div><strong>${r.pred.ph} – ${r.pred.pa}</strong></div>
+                <div style="font-size:10px;color:var(--green)">→ ${r.pred.winner}</div>
+                ${resultHtml}
+              </div>
+              <div style="flex:1;text-align:right;font-weight:500;font-size:12px">${r.away}</div>
+              <div style="min-width:70px;text-align:right">${ptsHtml}</div>
+            </div>`;
+          });
+        });
+        html += '</div>';
+      }
     }
     // Bonus
     if (bonusRes.campeon || bonusRes.goleador) {
