@@ -698,6 +698,14 @@ function renderBracketMatch(vm, isLocked){
   const homeColor = vm.team_home==='?'?'var(--muted)':'var(--dark)';
   const awayColor = vm.team_away==='?'?'var(--muted)':'var(--dark)';
 
+  const vCount = (STATE.allBrackets[vm.virtualId]||[]).length;
+  const vBtn = vCount>0 ? `<div style="border-top:0.5px solid var(--border);padding:4px 7px">
+    <button onclick="event.stopPropagation();showBracketPredictions('${vm.virtualId}','${vm.team_home}','${vm.team_away}')"
+      style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:9px;font-weight:500;padding:0">
+      👥 Ver ${vCount} pronósticos
+    </button>
+  </div>` : '';
+
   return `<div onclick="openBracketMatchModal('${vm.virtualId}','${vm.team_home}','${vm.team_away}','${vm.stage}','${vm.match1Id}','${vm.match2Id}')"
     style="border:0.5px solid ${borderColor};border-radius:8px;background:var(--surface-2);margin:3px 6px;overflow:hidden;cursor:default">
     <div style="display:flex;align-items:center;padding:5px 7px;border-bottom:0.5px solid var(--border);gap:4px">
@@ -707,6 +715,7 @@ function renderBracketMatch(vm, isLocked){
       <span style="flex:1;font-size:10px;font-weight:500;color:${awayColor}">${vm.team_away}</span>
     </div>
     ${ptsBadge}
+    ${vBtn}
   </div>`;
 }
 
@@ -1182,10 +1191,36 @@ async function loadAdminData(){
     html+=`<div style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">➕ Añadir partido de eliminatoria</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <input class="input" id="new-stage" placeholder="Fase (octavos, cuartos...)" style="font-size:13px">
-        <input class="input" id="new-date" placeholder="Ej: 4 jul 18:00" style="font-size:13px">
+        <select class="input" id="new-stage" style="font-size:13px">
+          <option value="">Fase...</option>
+          <option value="octavos">Octavos</option>
+          <option value="cuartos">Cuartos</option>
+          <option value="semifinal">Semifinal</option>
+          <option value="final">Final</option>
+        </select>
+        <input class="input" id="new-date" placeholder="Ej: 5 jul 21:00" style="font-size:13px">
         <input class="input" id="new-home" placeholder="Equipo local" style="font-size:13px">
         <input class="input" id="new-away" placeholder="Equipo visitante" style="font-size:13px">
+      </div>
+      <div style="margin-bottom:10px">
+        <select class="input" id="new-bracket-slot" style="font-size:13px">
+          <option value="">Cruce del bracket (obligatorio)</option>
+          <option value="oct_0">Oct 0 — Paraguay vs Francia</option>
+          <option value="oct_1">Oct 1 — Canadá vs Marruecos</option>
+          <option value="oct_2">Oct 2 — Portugal vs España</option>
+          <option value="oct_3">Oct 3 — EE.UU. vs Bélgica</option>
+          <option value="oct_4">Oct 4 — Brasil vs Noruega</option>
+          <option value="oct_5">Oct 5 — México vs Inglaterra</option>
+          <option value="oct_6">Oct 6 — Argentina vs Egipto</option>
+          <option value="oct_7">Oct 7 — Suiza vs Colombia</option>
+          <option value="cua_0">Cua 0 — Ganador Oct0 vs Ganador Oct1</option>
+          <option value="cua_1">Cua 1 — Ganador Oct2 vs Ganador Oct3</option>
+          <option value="cua_2">Cua 2 — Ganador Oct4 vs Ganador Oct5</option>
+          <option value="cua_3">Cua 3 — Ganador Oct6 vs Ganador Oct7</option>
+          <option value="semi_0">Semi 0 — Ganador Cua0 vs Ganador Cua1</option>
+          <option value="semi_1">Semi 1 — Ganador Cua2 vs Ganador Cua3</option>
+          <option value="final_0">Final</option>
+        </select>
       </div>
       <button class="btn btn-primary btn-sm" onclick="adminAddMatch()">+ Añadir partido</button>
     </div>`;
@@ -1205,7 +1240,7 @@ async function loadAdminData(){
 }
 
 function showBracketPredictions(matchId, homeTeam, awayTeam){
-  const preds = STATE.allBrackets[matchId] || [];
+  const preds = STATE.allBrackets[matchId] || STATE.allBrackets[String(matchId)] || [];
   const match = STATE.matches.find(m => m.id == matchId);
   const hasResult = match && match.result_home !== '' && match.result_home !== null;
 
@@ -1443,11 +1478,18 @@ async function adminSaveBonusResult(){
 }
 
 async function adminAddMatch(){
-  const stage=document.getElementById('new-stage').value.trim();const date=document.getElementById('new-date').value.trim();const home=document.getElementById('new-home').value.trim();const away=document.getElementById('new-away').value.trim();
+  const stage=document.getElementById('new-stage').value.trim();
+  const date=document.getElementById('new-date').value.trim();
+  const home=document.getElementById('new-home').value.trim();
+  const away=document.getElementById('new-away').value.trim();
+  const bracketSlot=document.getElementById('new-bracket-slot').value.trim();
   if(!stage||!home||!away){toast('Rellena fase y equipos');return}
+  if(stage!=='ronda32'&&!bracketSlot){toast('Selecciona el cruce del bracket');return}
   showLoading('Añadiendo partido...');
-  try{const res=await api({action:'addMatch',password:window.adminPass,stage,match_date:date,team_home:home,team_away:away});if(res.ok){toast('✅ Partido añadido');await loadAdminData()}else toast('❌ Error')}
-  catch(e){toast('❌ Error')}
+  try{
+    const res=await api({action:'addMatch',password:window.adminPass,stage,match_date:date,team_home:home,team_away:away,bracket_slot:bracketSlot});
+    if(res.ok){toast('✅ Partido añadido');await loadAdminData()}else toast('❌ Error');
+  }catch(e){toast('❌ Error')}
   hideLoading();
 }
 
