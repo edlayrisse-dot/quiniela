@@ -679,20 +679,85 @@ function buildBracketRound(roundMatches, prevRoundMatches, stage){
   });
 }
 
+function virtualIdToSlot(virtualId){
+  if(virtualId.indexOf('octavos_')===0)   return 'oct_'+virtualId.split('_')[1];
+  if(virtualId.indexOf('cuartos_')===0)   return 'cua_'+virtualId.split('_')[1];
+  if(virtualId.indexOf('semifinal_')===0) return 'semi_'+virtualId.split('_')[1];
+  if(virtualId.indexOf('final_')===0)     return 'final_0';
+  return null;
+}
+
+function predTeamsForSlotRound(round, idx){
+  if(round==='octavos'){
+    const pair = BRACKET.octavosBySheetId[idx];
+    return [getWinnerFromBracket(pair[0]), getWinnerFromBracket(pair[1])];
+  }
+  if(round==='cuartos'){
+    const pair = BRACKET.cuartos[idx];
+    return [getWinnerFromBracket('octavos_'+pair[0]), getWinnerFromBracket('octavos_'+pair[1])];
+  }
+  if(round==='semifinal'){
+    const pair = BRACKET.semifinal[idx];
+    return [getWinnerFromBracket('cuartos_'+pair[0]), getWinnerFromBracket('cuartos_'+pair[1])];
+  }
+  if(round==='final'){
+    return [getWinnerFromBracket('semifinal_0'), getWinnerFromBracket('semifinal_1')];
+  }
+  return [null, null];
+}
+
+// Calcula los puntos del usuario logueado para un cruce octavos+ ya jugado
+function calcMyBracketPoints(vm){
+  const slot = virtualIdToSlot(vm.virtualId);
+  if(!slot) return null;
+  const realMatch = STATE.matches.find(m => String(m.bracket_slot||'')===slot);
+  if(!realMatch) return null;
+  const hasResult = realMatch.result_home!=='' && realMatch.result_home!==null && realMatch.result_home!==undefined;
+  if(!hasResult) return null;
+
+  const bp = STATE.bracketPreds[vm.virtualId];
+  if(!bp || !bp.pred_winner) return null;
+
+  const idx = parseInt(vm.virtualId.split('_')[1]);
+  const predTeams = predTeamsForSlotRound(vm.stage, idx);
+  const t1In = predTeams[0]===realMatch.team_home || predTeams[0]===realMatch.team_away;
+  const t2In = predTeams[1]===realMatch.team_home || predTeams[1]===realMatch.team_away;
+  const mult = getStageMultiplier(vm.stage);
+  const rh = parseInt(realMatch.result_home), ra = parseInt(realMatch.result_away);
+  const realWinner = rh>ra ? realMatch.team_home : realMatch.team_away;
+
+  let pts=0, label='', cls='background:#fff0ef;color:#FF574D';
+  if(t1In && t2In){
+    if(parseInt(bp.pred_home)===rh && parseInt(bp.pred_away)===ra){ pts=5*mult; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; }
+    else if(bp.pred_winner===realWinner){ pts=3*mult; label='✓ Ganador'; cls='background:#fff8e1;color:#b07d00'; }
+    else { label='✗ Fallo'; }
+  } else if(t1In || t2In){
+    if(bp.pred_winner===realWinner){ pts=3*mult; label='✓ Ganador'; cls='background:#fff8e1;color:#b07d00'; }
+    else { label='✗ Fallo'; }
+  } else {
+    label='✗ Ninguno llegó';
+  }
+  return {pts, label, cls, result: realMatch.result_home+'–'+realMatch.result_away};
+}
+
 function renderBracketMatch(vm, isLocked){
   const bp = STATE.bracketPreds[vm.virtualId] || {};
   const hasPred = bp.pred_winner;
   const mult = getStageMultiplier(vm.stage);
-  // Find real match for result (for virtual matches, no direct result)
-  // Virtual matches don't have direct results yet — only R32 do
   const borderColor = hasPred ? 'var(--green)' : 'var(--border)';
 
-  // Points badge
+  const predText = hasPred ? `<div style="font-size:9px;color:var(--green);text-align:center;padding:2px 4px;border-top:0.5px solid var(--border)">${bp.pred_home}–${bp.pred_away} → ${bp.pred_winner}</div>` : '';
+
+  // Puntos reales si el partido ya se jugó
   let ptsBadge = '';
   if(hasPred){
-    // For virtual (non-R32) matches we don't have direct result lookup yet
-    // Show pred score + winner
-    ptsBadge = `<div style="font-size:9px;color:var(--green);text-align:center;padding:2px 4px;border-top:0.5px solid var(--border)">${bp.pred_home}–${bp.pred_away} → ${bp.pred_winner}</div>`;
+    const scored = calcMyBracketPoints(vm);
+    if(scored){
+      ptsBadge = `<div style="text-align:center;padding:3px 4px;border-top:0.5px solid var(--border)">
+        <span style="${scored.cls};font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px">${scored.pts}pts ${scored.label}</span>
+        <div style="font-size:8px;color:var(--muted);margin-top:1px">Oficial: ${scored.result}</div>
+      </div>`;
+    }
   }
 
   const homeColor = vm.team_home==='?'?'var(--muted)':'var(--dark)';
@@ -714,6 +779,7 @@ function renderBracketMatch(vm, isLocked){
     <div style="display:flex;align-items:center;padding:5px 7px;gap:4px">
       <span style="flex:1;font-size:10px;font-weight:500;color:${awayColor}">${vm.team_away}</span>
     </div>
+    ${predText}
     ${ptsBadge}
     ${vBtn}
   </div>`;
