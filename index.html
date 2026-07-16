@@ -720,15 +720,27 @@ function calcMyBracketPoints(vm){
 
   const idx = parseInt(vm.virtualId.split('_')[1]);
   const predTeams = predTeamsForSlotRound(vm.stage, idx);
-  const t1In = predTeams[0]===realMatch.team_home || predTeams[0]===realMatch.team_away;
-  const t2In = predTeams[1]===realMatch.team_home || predTeams[1]===realMatch.team_away;
+  const t1 = predTeams[0], t2 = predTeams[1];
+  const t1In = t1===realMatch.team_home || t1===realMatch.team_away;
+  const t2In = t2===realMatch.team_home || t2===realMatch.team_away;
   const mult = getStageMultiplier(vm.stage);
   const rh = parseInt(realMatch.result_home), ra = parseInt(realMatch.result_away);
   const realWinner = rh>ra ? realMatch.team_home : realMatch.team_away;
 
+  // El home/away de su pronostico (t1/t2) puede no coincidir con el orden
+  // home/away del partido real. Comparar el marcador por EQUIPO, no por posicion.
+  const scoreForTeam = team => {
+    if(t1===team) return parseInt(bp.pred_home);
+    if(t2===team) return parseInt(bp.pred_away);
+    return null;
+  };
+  const scoreHome = scoreForTeam(realMatch.team_home);
+  const scoreAway = scoreForTeam(realMatch.team_away);
+  const isExact = scoreHome!==null && scoreAway!==null && scoreHome===rh && scoreAway===ra;
+
   let pts=0, label='', cls='background:#fff0ef;color:#FF574D';
   if(t1In && t2In){
-    if(parseInt(bp.pred_home)===rh && parseInt(bp.pred_away)===ra){ pts=5*mult; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; }
+    if(isExact){ pts=5*mult; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; }
     else if(bp.pred_winner===realWinner){ pts=3*mult; label='✓ Ganador'; cls='background:#fff8e1;color:#b07d00'; }
     else { label='✗ Fallo'; }
   } else if(t1In || t2In){
@@ -1517,8 +1529,9 @@ async function viewPredictions(token, name){
         if(!pred) return;
 
         const predTeams = predTeamsForRound(slotInfo.round, slotInfo.idx);
-        const t1In = predTeams[0]===m.team_home || predTeams[0]===m.team_away;
-        const t2In = predTeams[1]===m.team_home || predTeams[1]===m.team_away;
+        const t1 = predTeams[0], t2 = predTeams[1];
+        const t1In = t1===m.team_home || t1===m.team_away;
+        const t2In = t2===m.team_home || t2===m.team_away;
         const mult = stageMult[m.stage]||1;
         const hasResult = m.result_home!=='' && m.result_home!==null && m.result_home!==undefined;
 
@@ -1526,8 +1539,18 @@ async function viewPredictions(token, name){
         if(hasResult){
           const rh=parseInt(m.result_home), ra=parseInt(m.result_away);
           const realWinner = rh>ra ? m.team_home : m.team_away;
+          // El home/away del pronostico (t1/t2) puede no coincidir con el orden
+          // home/away del partido real. Comparar el marcador por EQUIPO, no por posicion.
+          const scoreForTeam = team => {
+            if(t1===team) return parseInt(pred.ph);
+            if(t2===team) return parseInt(pred.pa);
+            return null;
+          };
+          const scoreHome = scoreForTeam(m.team_home);
+          const scoreAway = scoreForTeam(m.team_away);
+          const isExact = scoreHome!==null && scoreAway!==null && scoreHome===rh && scoreAway===ra;
           if(t1In && t2In){
-            if(pred.ph===rh && pred.pa===ra){ pts=5*mult; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; bg='#f0fff4'; }
+            if(isExact){ pts=5*mult; label='✓ Exacto'; cls='background:#e8f7ee;color:#1a7f3c'; bg='#f0fff4'; }
             else if(pred.winner===realWinner){ pts=3*mult; label='✓ Ganador'; cls='background:#fff8e1;color:#b07d00'; bg='#fffdf0'; }
             else { pts=0; label='✗ Fallo'; cls='background:#fff0ef;color:#FF574D'; bg='#fff8f8'; }
           } else if(t1In || t2In){
@@ -1630,4 +1653,3 @@ if(urlToken){localStorage.setItem('quinielaToken',urlToken)}
 </script>
 </body>
 </html>
-
