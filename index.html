@@ -1330,10 +1330,12 @@ function showBracketPredictions(matchId, homeTeam, awayTeam){
     return;
   }
 
-  // Group by score
+  // Group by score AND winner juntos (distintos participantes pueden tener
+  // el mismo marcador numerico pero con equipos distintos como ganador,
+  // ya que cada uno pronostico un camino diferente en su propio bracket)
   const scoreMap = {};
   preds.forEach(p => {
-    const key = `${p.pred_home}-${p.pred_away}`;
+    const key = `${p.pred_home}-${p.pred_away}-${p.pred_winner}`;
     if(!scoreMap[key]) scoreMap[key] = {home: p.pred_home, away: p.pred_away, winner: p.pred_winner, people: []};
     scoreMap[key].people.push(p.nombre + ' ' + p.apellido);
   });
