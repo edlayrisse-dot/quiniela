@@ -239,18 +239,18 @@ input,select{font-family:var(--font)}
     </div>
     <div class="tab-panel" id="panel-bonuses">
       <div style="padding:16px">
-        <p class="text-muted" style="margin-bottom:16px;font-size:13px">
-          Elige antes de octavos. Si aciertas el campeón sumas <strong>+20 pts</strong>, el goleador <strong>+15 pts</strong>.
-        </p>
+        <div style="background:#fff0ef;border:1px solid #ffb3ae;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:13px;font-weight:500;color:#FF574D;text-align:center">
+          🔒 Los bonuses (Campeón del mundo / Goleador) están cerrados.
+        </div>
         <div class="form-group">
           <label class="label">🏆 Campeón del mundo</label>
-          <input class="input" type="text" id="bonus-campeon" placeholder="Ej: Argentina, Brasil, Francia...">
+          <input class="input" type="text" id="bonus-campeon" placeholder="Ej: Argentina, Brasil, Francia..." disabled>
         </div>
         <div class="form-group">
           <label class="label">⚽ Goleador del torneo</label>
-          <input class="input" type="text" id="bonus-goleador" placeholder="Ej: Mbappé, Haaland, Vinicius...">
+          <input class="input" type="text" id="bonus-goleador" placeholder="Ej: Mbappé, Haaland, Vinicius..." disabled>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="saveBonus()">Guardar bonuses</button>
+        <button class="btn btn-primary btn-sm" onclick="saveBonus()" disabled style="opacity:.5;cursor:not-allowed">🔒 Cerrado</button>
       </div>
     </div>
     <div class="tab-panel" id="panel-reglas">
@@ -1178,12 +1178,8 @@ async function savePredictions(){
 }
 
 async function saveBonus(){
-  const campeon=document.getElementById('bonus-campeon').value.trim();
-  const goleador=document.getElementById('bonus-goleador').value.trim();
-  showLoading('Guardando bonuses...');
-  try{const res=await api({action:'saveBonus',token:STATE.token,campeon,goleador});if(res.ok)toast('✅ Bonuses guardados');else toast('❌ Error')}
-  catch(e){toast('❌ Error de conexión')}
-  hideLoading();
+  toast('🔒 Los bonuses (Campeón/Goleador) están cerrados');
+  return;
 }
 
 function updateSubmittedState(){
