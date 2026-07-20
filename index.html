@@ -242,6 +242,7 @@ input,select{font-family:var(--font)}
         <div style="background:#fff0ef;border:1px solid #ffb3ae;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:13px;font-weight:500;color:#FF574D;text-align:center">
           🔒 Los bonuses (Campeón del mundo / Goleador) están cerrados.
         </div>
+        <div id="bonus-result-container"></div>
         <div class="form-group">
           <label class="label">🏆 Campeón del mundo</label>
           <input class="input" type="text" id="bonus-campeon" placeholder="Ej: Argentina, Brasil, Francia..." disabled>
@@ -503,7 +504,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
 async function loadParticipant(token){
   showLoading('Cargando tu quiniela...');
   try{
-    const [partRes,matchRes,predRes,rankRes,bonusRes,allPredsRes,bracketRes,allBracketsRes]=await Promise.all([
+    const [partRes,matchRes,predRes,rankRes,bonusRes,allPredsRes,bracketRes,allBracketsRes,bonusResultRes]=await Promise.all([
       api({action:'getParticipant',token}),
       api({action:'getMatches'}),
       api({action:'getPredictions',token}),
@@ -511,7 +512,8 @@ async function loadParticipant(token){
       api({action:'getBonus',token}),
       api({action:'getAllPredictions'}),
       api({action:'getBracket',token}),
-      api({action:'getAllBrackets'})
+      api({action:'getAllBrackets'}),
+      api({action:'getBonusResult'})
     ]);
     if(!partRes.ok){hideLoading();showPage('register');return}
     STATE.token=token;STATE.participant=partRes;
@@ -542,6 +544,8 @@ async function loadParticipant(token){
     document.getElementById('stat-pts').textContent=STATE.myPts;
     document.getElementById('stat-total').textContent=STATE.ranking.length;
     if(bonusRes.ok){document.getElementById('bonus-campeon').value=bonusRes.campeon||'';document.getElementById('bonus-goleador').value=bonusRes.goleador||''}
+    STATE.bonusOfficial = bonusResultRes && bonusResultRes.ok ? {campeon: bonusResultRes.campeon||'', goleador: bonusResultRes.goleador||''} : {campeon:'', goleador:''};
+    renderBonusResult(bonusRes.campeon||'', bonusRes.goleador||'');
     // Check if already submitted (from server)
     STATE.submitted = partRes.submitted === true;
     renderMatches();renderRanking();updateDeadlineBanner();updateSubmittedState();hideLoading();showPage('quiniela');
@@ -1175,6 +1179,53 @@ async function savePredictions(){
     }else toast('❌ Error al guardar');
   }catch(e){toast('❌ Error de conexión')}
   hideLoading();
+}
+
+function normalizeText(s){
+  if(!s) return '';
+  return s.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
+function renderBonusResult(myCampeon, myGoleador){
+  const container = document.getElementById('bonus-result-container');
+  if(!container) return;
+  const official = STATE.bonusOfficial || {campeon:'', goleador:''};
+
+  if(!official.campeon && !official.goleador){
+    container.innerHTML = '';
+    return;
+  }
+
+  let html = '<div style="margin-bottom:14px">';
+
+  if(official.campeon){
+    const hit = myCampeon && normalizeText(myCampeon)===normalizeText(official.campeon);
+    const bg = hit ? '#e8f7ee' : '#fff0ef';
+    const color = hit ? '#1a7f3c' : '#FF574D';
+    html += `<div style="background:${bg};border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span>🏆 Campeón oficial: <strong>${official.campeon}</strong></span>
+        <span style="color:${color};font-weight:700">${hit?'✓ +20pts':'✗ 0pts'}</span>
+      </div>
+      ${myCampeon ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Tu pronóstico: ${myCampeon}</div>` : ''}
+    </div>`;
+  }
+
+  if(official.goleador){
+    const hit = myGoleador && normalizeText(myGoleador)===normalizeText(official.goleador);
+    const bg = hit ? '#e8f7ee' : '#fff0ef';
+    const color = hit ? '#1a7f3c' : '#FF574D';
+    html += `<div style="background:${bg};border-radius:8px;padding:10px 12px;font-size:13px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span>⚽ Goleador oficial: <strong>${official.goleador}</strong></span>
+        <span style="color:${color};font-weight:700">${hit?'✓ +15pts':'✗ 0pts'}</span>
+      </div>
+      ${myGoleador ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Tu pronóstico: ${myGoleador}</div>` : ''}
+    </div>`;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
 }
 
 async function saveBonus(){
