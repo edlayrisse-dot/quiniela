@@ -1186,6 +1186,16 @@ function normalizeText(s){
   return s.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
 
+function namesMatch(a, b){
+  const na = normalizeText(a), nb = normalizeText(b);
+  if(!na || !nb) return false;
+  if(na === nb) return true;
+  const shortStr = na.length <= nb.length ? na : nb;
+  const longStr  = na.length <= nb.length ? nb : na;
+  const shortWords = shortStr.split(/\s+/).filter(w=>w.length>0);
+  return shortWords.length>0 && shortWords.every(w=>longStr.indexOf(w)!==-1);
+}
+
 function renderBonusResult(myCampeon, myGoleador){
   const container = document.getElementById('bonus-result-container');
   if(!container) return;
@@ -1199,7 +1209,7 @@ function renderBonusResult(myCampeon, myGoleador){
   let html = '<div style="margin-bottom:14px">';
 
   if(official.campeon){
-    const hit = myCampeon && normalizeText(myCampeon)===normalizeText(official.campeon);
+    const hit = myCampeon && namesMatch(myCampeon, official.campeon);
     const bg = hit ? '#e8f7ee' : '#fff0ef';
     const color = hit ? '#1a7f3c' : '#FF574D';
     html += `<div style="background:${bg};border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px">
@@ -1212,7 +1222,7 @@ function renderBonusResult(myCampeon, myGoleador){
   }
 
   if(official.goleador){
-    const hit = myGoleador && normalizeText(myGoleador)===normalizeText(official.goleador);
+    const hit = myGoleador && namesMatch(myGoleador, official.goleador);
     const bg = hit ? '#e8f7ee' : '#fff0ef';
     const color = hit ? '#1a7f3c' : '#FF574D';
     html += `<div style="background:${bg};border-radius:8px;padding:10px 12px;font-size:13px">
@@ -1643,8 +1653,8 @@ async function viewPredictions(token, name){
     // Bonus
     if (bonusRes.campeon || bonusRes.goleador) {
       const official = bonusResultRes && bonusResultRes.ok ? bonusResultRes : {campeon:'', goleador:''};
-      const campeonHit = official.campeon && bonusRes.campeon && normalizeText(bonusRes.campeon)===normalizeText(official.campeon);
-      const goleadorHit = official.goleador && bonusRes.goleador && normalizeText(bonusRes.goleador)===normalizeText(official.goleador);
+      const campeonHit = official.campeon && bonusRes.campeon && namesMatch(bonusRes.campeon, official.campeon);
+      const goleadorHit = official.goleador && bonusRes.goleador && namesMatch(bonusRes.goleador, official.goleador);
       html += `<div style="margin-top:12px;padding:10px 12px;background:#fff0ef;border-radius:8px;font-size:13px">
         <div style="font-weight:600;margin-bottom:6px;color:var(--red)">⭐ Bonuses</div>
         <div style="display:flex;align-items:center;justify-content:space-between">
