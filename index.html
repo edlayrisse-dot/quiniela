@@ -1471,10 +1471,11 @@ async function viewPredictions(token, name){
   document.getElementById('modal-body').innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargando...</p>';
   document.getElementById('pred-modal').style.display = 'block';
   try {
-    const [res, bonusRes, bracketRes] = await Promise.all([
+    const [res, bonusRes, bracketRes, bonusResultRes] = await Promise.all([
       api({action:'getPredictions', token}),
       api({action:'getBonus', token}),
-      api({action:'getBracket', token})
+      api({action:'getBracket', token}),
+      api({action:'getBonusResult'})
     ]);
     const preds = res.predictions || [];
     const predMap = {};
@@ -1641,10 +1642,20 @@ async function viewPredictions(token, name){
     }
     // Bonus
     if (bonusRes.campeon || bonusRes.goleador) {
+      const official = bonusResultRes && bonusResultRes.ok ? bonusResultRes : {campeon:'', goleador:''};
+      const campeonHit = official.campeon && bonusRes.campeon && normalizeText(bonusRes.campeon)===normalizeText(official.campeon);
+      const goleadorHit = official.goleador && bonusRes.goleador && normalizeText(bonusRes.goleador)===normalizeText(official.goleador);
       html += `<div style="margin-top:12px;padding:10px 12px;background:#fff0ef;border-radius:8px;font-size:13px">
         <div style="font-weight:600;margin-bottom:6px;color:var(--red)">⭐ Bonuses</div>
-        <div>🏆 Campeón: <strong>${bonusRes.campeon || '—'}</strong></div>
-        <div style="margin-top:4px">⚽ Goleador: <strong>${bonusRes.goleador || '—'}</strong></div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span>🏆 Campeón: <strong>${bonusRes.campeon || '—'}</strong></span>
+          ${official.campeon ? `<span style="color:${campeonHit?'#1a7f3c':'#FF574D'};font-weight:700;font-size:12px">${campeonHit?'✓ +20pts':'✗ 0pts'}</span>` : ''}
+        </div>
+        <div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">
+          <span>⚽ Goleador: <strong>${bonusRes.goleador || '—'}</strong></span>
+          ${official.goleador ? `<span style="color:${goleadorHit?'#1a7f3c':'#FF574D'};font-weight:700;font-size:12px">${goleadorHit?'✓ +15pts':'✗ 0pts'}</span>` : ''}
+        </div>
+        ${official.campeon||official.goleador ? `<div style="margin-top:6px;font-size:11px;color:var(--muted)">Oficial: ${official.campeon||'—'} / ${official.goleador||'—'}</div>` : ''}
       </div>`;
     }
     document.getElementById('modal-body').innerHTML = html;
